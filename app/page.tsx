@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MapPin, Calendar, Grid3X3, Map, Plus } from "lucide-react";
+import { MapPin, Calendar, Grid3X3, Map, Plus, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import WorldMap from "@/components/world-map";
 import TravelModal from "@/components/travel-modal";
 import GalleryView from "@/components/gallery-view";
 import TimelineView from "@/components/timeline-view";
+import StatsView from "@/components/stats-view";
 import type { TravelLog } from "@/types/travel";
 
 const emotions = {
@@ -21,9 +22,9 @@ const emotions = {
 };
 
 export default function HomePage() {
-  const [viewMode, setViewMode] = useState<"map" | "gallery" | "timeline">(
-    "map"
-  );
+  const [viewMode, setViewMode] = useState<
+    "map" | "gallery" | "timeline" | "stats"
+  >("map");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPin, setSelectedPin] = useState<TravelLog | null>(null);
   const [travelLogs, setTravelLogs] = useState<TravelLog[]>([
@@ -139,6 +140,7 @@ export default function HomePage() {
       lat,
       lng,
       placeName: "",
+      country: "",
       emotion: "happy",
       photos: [],
       diary: "",
@@ -215,6 +217,15 @@ export default function HomePage() {
                 <Calendar className="w-4 h-4 mr-2" />
                 타임라인
               </Button>
+              <Button
+                variant={viewMode === "stats" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("stats")}
+                className="text-slate-300 hover:text-white"
+              >
+                <BarChart3 className="w-4 h-4 mr-2" />
+                통계
+              </Button>
             </div>
           </div>
         </div>
@@ -269,6 +280,18 @@ export default function HomePage() {
                 emotions={emotions}
                 onLogClick={handlePinClick}
               />
+            </motion.div>
+          )}
+
+          {viewMode === "stats" && (
+            <motion.div
+              key="stats"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <StatsView travelLogs={travelLogs} emotions={emotions} />
             </motion.div>
           )}
         </AnimatePresence>
