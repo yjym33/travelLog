@@ -1,16 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MapPin, Calendar, Grid3X3, Map, Plus, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import WorldMap from "@/components/world-map";
 import TravelModal from "@/components/travel-modal";
 import GalleryView from "@/components/gallery-view";
 import TimelineView from "@/components/timeline-view";
 import StatsView from "@/components/stats-view";
+import FilterPanel from "@/components/filter-panel";
 import type { TravelLog } from "@/types/travel";
+import type { FilterState } from "@/types/filter";
+import { initialFilterState } from "@/types/filter";
+import {
+  filterTravelLogs,
+  getUniqueTags,
+  getUniqueCountries,
+  hasActiveFilters,
+  getFilterStats,
+} from "@/utils/filterUtils";
 
 const emotions = {
   happy: { color: "#FFD700", emoji: "😊", label: "행복" },
@@ -27,6 +38,7 @@ export default function HomePage() {
   >("map");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPin, setSelectedPin] = useState<TravelLog | null>(null);
+  const [filters, setFilters] = useState<FilterState>(initialFilterState);
   const [travelLogs, setTravelLogs] = useState<TravelLog[]>([
     {
       id: "1",
@@ -169,6 +181,27 @@ export default function HomePage() {
     setSelectedPin(null);
   };
 
+  // 필터링된 여행 기록 계산
+  const filteredTravelLogs = useMemo(() => {
+    return filterTravelLogs(travelLogs, filters);
+  }, [travelLogs, filters]);
+
+  // 필터에 사용할 고유 태그와 국가 추출
+  const availableTags = useMemo(() => getUniqueTags(travelLogs), [travelLogs]);
+  const availableCountries = useMemo(
+    () => getUniqueCountries(travelLogs),
+    [travelLogs]
+  );
+
+  // 필터 통계
+  const filterStats = useMemo(
+    () => getFilterStats(travelLogs.length, filteredTravelLogs.length),
+    [travelLogs.length, filteredTravelLogs.length]
+  );
+
+  // 활성 필터 여부
+  const isFiltered = hasActiveFilters(filters);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       {/* Header */}
@@ -226,6 +259,14 @@ export default function HomePage() {
                 <BarChart3 className="w-4 h-4 mr-2" />
                 통계
               </Button>
+              <div className="h-6 w-px bg-slate-600 mx-2" />
+              <FilterPanel
+                filters={filters}
+                onFiltersChange={setFilters}
+                emotions={emotions}
+                availableTags={availableTags}
+                availableCountries={availableCountries}
+              />
             </div>
           </div>
         </div>
@@ -233,6 +274,42 @@ export default function HomePage() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
+        {/* 필터 결과 배너 */}
+        {isFiltered && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-4"
+          >
+            <Card className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/30 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                    <MapPin className="w-5 h-5 text-purple-400" />
+                  </div>
+                  <div>
+                    <div className="text-sm text-slate-400">필터 적용 결과</div>
+                    <div className="text-lg font-semibold text-white">
+                      {filterStats.filtered}개 / {filterStats.total}개{" "}
+                      <span className="text-sm text-purple-400">
+                        ({filterStats.percentage}%)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setFilters(initialFilterState)}
+                  className="text-slate-300 hover:text-white"
+                >
+                  필터 초기화
+                </Button>
+              </div>
+            </Card>
+          </motion.div>
+        )}
+
         <AnimatePresence mode="wait">
           {viewMode === "map" && (
             <motion.div
@@ -243,7 +320,7 @@ export default function HomePage() {
               transition={{ duration: 0.3 }}
             >
               <WorldMap
-                travelLogs={travelLogs}
+                travelLogs={filteredTravelLogs}
                 onPinClick={handlePinClick}
                 onAddPin={handleAddPin}
                 emotions={emotions}
@@ -260,7 +337,7 @@ export default function HomePage() {
               transition={{ duration: 0.3 }}
             >
               <GalleryView
-                travelLogs={travelLogs}
+                travelLogs={filteredTravelLogs}
                 emotions={emotions}
                 onLogClick={handlePinClick}
               />
@@ -276,7 +353,7 @@ export default function HomePage() {
               transition={{ duration: 0.3 }}
             >
               <TimelineView
-                travelLogs={travelLogs}
+                travelLogs={filteredTravelLogs}
                 emotions={emotions}
                 onLogClick={handlePinClick}
               />
@@ -291,7 +368,7 @@ export default function HomePage() {
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
             >
-              <StatsView travelLogs={travelLogs} emotions={emotions} />
+              <StatsView travelLogs={filteredTravelLogs} emotions={emotions} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -307,19 +384,17 @@ export default function HomePage() {
             <div className="flex items-center gap-4 text-slate-300">
               <div className="text-center">
                 <div className="text-2xl font-bold text-purple-400">
-                  {travelLogs.length}
+                  {filteredTravelLogs.length}
                 </div>
-                <div className="text-xs">여행 기록</div>
+                <div className="text-xs">
+                  {isFiltered ? "필터된 기록" : "여행 기록"}
+                </div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-pink-400">
-                  {
-                    new Set(
-                      travelLogs.map((log) => log.placeName.split(" ")[0])
-                    ).size
-                  }
+                  {new Set(filteredTravelLogs.map((log) => log.country)).size}
                 </div>
-                <div className="text-xs">방문 도시</div>
+                <div className="text-xs">방문 국가</div>
               </div>
             </div>
           </Card>
