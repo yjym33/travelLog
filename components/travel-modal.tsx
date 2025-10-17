@@ -2,7 +2,16 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Camera, MapPin, Calendar, Tag, Trash2, Upload } from "lucide-react";
+import {
+  X,
+  Camera,
+  MapPin,
+  Calendar,
+  Tag,
+  Trash2,
+  Upload,
+  Share2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,6 +27,7 @@ interface TravelModalProps {
   emotions: Record<string, Emotion>;
   onSave: (log: TravelLog) => void;
   onDelete: (id: string) => void;
+  onShare?: () => void;
 }
 
 export default function TravelModal({
@@ -27,6 +37,7 @@ export default function TravelModal({
   emotions,
   onSave,
   onDelete,
+  onShare,
 }: TravelModalProps) {
   const [formData, setFormData] = useState<TravelLog>({
     id: "",
@@ -341,6 +352,20 @@ export default function TravelModal({
                     />
                   </div>
                 </div>
+
+                {/* Share Section - Only for existing logs */}
+                {formData.id && onShare && (
+                  <div className="mt-6 pt-6 border-t border-slate-700">
+                    <Button
+                      variant="outline"
+                      onClick={onShare}
+                      className="w-full border-purple-500/30 hover:bg-purple-500/10"
+                    >
+                      <Share2 className="w-4 h-4 mr-2" />
+                      여행 공유하기
+                    </Button>
+                  </div>
+                )}
 
                 {/* Actions */}
                 <div className="flex justify-end gap-3 mt-8">

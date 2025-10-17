@@ -12,9 +12,14 @@ import GalleryView from "@/components/gallery-view";
 import TimelineView from "@/components/timeline-view";
 import StatsView from "@/components/stats-view";
 import FilterPanel from "@/components/filter-panel";
+import ShareModal from "@/components/share-modal";
+import StoryCreator from "@/components/story-creator";
+import ShareImageGenerator from "@/components/share-image-generator";
 import type { TravelLog } from "@/types/travel";
 import type { FilterState } from "@/types/filter";
+import type { TravelStory } from "@/types/story";
 import { initialFilterState } from "@/types/filter";
+import { exportTravelToPDF } from "@/utils/pdfExport";
 import {
   filterTravelLogs,
   getUniqueTags,
@@ -39,6 +44,10 @@ export default function HomePage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPin, setSelectedPin] = useState<TravelLog | null>(null);
   const [filters, setFilters] = useState<FilterState>(initialFilterState);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isStoryCreatorOpen, setIsStoryCreatorOpen] = useState(false);
+  const [shareImageBlob, setShareImageBlob] = useState<Blob | null>(null);
+  const [stories, setStories] = useState<TravelStory[]>([]);
   const [travelLogs, setTravelLogs] = useState<TravelLog[]>([
     {
       id: "1",
@@ -48,10 +57,14 @@ export default function HomePage() {
       placeName: "서울 한강공원",
       country: "South Korea",
       emotion: "peaceful",
-      photos: ["/placeholder.svg?height=300&width=400"],
+      photos: [
+        "https://images.unsplash.com/photo-1517154421773-0529f29ea451?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1581889870280-6e63fb07b9da?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1583954177945-5a9a7b2b8e1f?w=800&h=600&fit=crop",
+      ],
       diary:
-        "한강에서 바라본 노을이 정말 아름다웠다. 마음이 평온해지는 순간이었어.",
-      tags: ["#한강", "#노을", "#평온"],
+        "한강에서 바라본 노을이 정말 아름다웠다. 마음이 평온해지는 순간이었어. 강변을 따라 걸으며 서울의 야경을 감상했고, 치맥과 함께 완벽한 저녁을 보냈다.",
+      tags: ["#한강", "#노을", "#평온", "#서울"],
       createdAt: "2024-03-15",
     },
     {
@@ -62,13 +75,16 @@ export default function HomePage() {
       placeName: "도쿄 시부야",
       country: "Japan",
       emotion: "excited",
-      photos: ["/placeholder.svg?height=300&width=400"],
+      photos: [
+        "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1542051841857-5f90071e7989?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1503899036084-c55cdd92da26?w=800&h=600&fit=crop",
+      ],
       diary:
-        "시부야 스크램블 교차로의 에너지가 정말 대단했다! 도시의 활기를 온몸으로 느꼈어.",
-      tags: ["#도쿄", "#시부야", "#도시"],
+        "시부야 스크램블 교차로의 에너지가 정말 대단했다! 도시의 활기를 온몸으로 느꼈어. 네온사인이 빛나는 밤거리를 걸으며 일본의 현대적인 면모를 체험했다.",
+      tags: ["#도쿄", "#시부야", "#도시", "#일본"],
       createdAt: "2024-02-20",
     },
-    // 미국
     {
       id: "us1",
       userId: "user1",
@@ -77,12 +93,16 @@ export default function HomePage() {
       placeName: "New York",
       country: "United States",
       emotion: "happy",
-      photos: ["/placeholder.svg?height=300&width=400"],
-      diary: "뉴욕의 자유의 여신상과 센트럴파크를 다녀왔다!",
-      tags: ["#뉴욕", "#미국"],
+      photos: [
+        "https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1485871981521-5b1fd3805eee?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1522083165195-3424ed129620?w=800&h=600&fit=crop",
+      ],
+      diary:
+        "뉴욕의 자유의 여신상과 센트럴파크를 다녀왔다! 브로드웨이 뮤지컬도 보고 타임스퀘어의 화려한 불빛에 감탄했다. 진정한 도시의 에너지를 느꼈다.",
+      tags: ["#뉴욕", "#미국", "#자유의여신상"],
       createdAt: "2023-07-10",
     },
-    // 프랑스
     {
       id: "fr1",
       userId: "user1",
@@ -91,12 +111,16 @@ export default function HomePage() {
       placeName: "Paris",
       country: "France",
       emotion: "romantic",
-      photos: ["/placeholder.svg?height=300&width=400"],
-      diary: "에펠탑 야경이 너무 아름다웠다.",
-      tags: ["#파리", "#프랑스"],
+      photos: [
+        "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1511739001486-6bfe10ce785f?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1549144511-f099e773c147?w=800&h=600&fit=crop",
+      ],
+      diary:
+        "에펠탑 야경이 너무 아름다웠다. 세느강을 따라 산책하며 파리의 낭만을 만끽했고, 작은 카페에서 크루아상과 커피를 즐기는 완벽한 하루였다.",
+      tags: ["#파리", "#프랑스", "#에펠탑", "#낭만"],
       createdAt: "2022-05-15",
     },
-    // 브라질
     {
       id: "br1",
       userId: "user1",
@@ -105,12 +129,16 @@ export default function HomePage() {
       placeName: "Rio de Janeiro",
       country: "Brazil",
       emotion: "adventurous",
-      photos: ["/placeholder.svg?height=300&width=400"],
-      diary: "코파카바나 해변에서 축제를 즐겼다!",
-      tags: ["#리우", "#브라질"],
+      photos: [
+        "https://images.unsplash.com/photo-1483729558449-99ef09a8c325?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1548963670-aaaa8f73a5e3?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1516306580123-e6e52b1b7b5f?w=800&h=600&fit=crop",
+      ],
+      diary:
+        "코파카바나 해변에서 축제를 즐겼다! 삼바 리듬에 맞춰 춤추고 카이피리냐를 마시며 브라질의 열정을 느꼈다. 크리스토 헤덴토르 상에서 본 풍경도 잊을 수 없다.",
+      tags: ["#리우", "#브라질", "#해변", "#축제"],
       createdAt: "2021-11-03",
     },
-    // 남아프리카공화국
     {
       id: "za1",
       userId: "user1",
@@ -119,12 +147,16 @@ export default function HomePage() {
       placeName: "Cape Town",
       country: "South Africa",
       emotion: "peaceful",
-      photos: ["/placeholder.svg?height=300&width=400"],
-      diary: "테이블 마운틴에서 바라본 경치가 최고였다.",
-      tags: ["#케이프타운", "#남아공"],
+      photos: [
+        "https://images.unsplash.com/photo-1580060839134-75a5edca2e99?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1577948000111-9c970dfe3743?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1591528036424-7b445086aa8c?w=800&h=600&fit=crop",
+      ],
+      diary:
+        "테이블 마운틴에서 바라본 경치가 최고였다. 케이프 포인트에서 대서양과 인도양이 만나는 지점을 보며 자연의 웅장함에 압도되었다.",
+      tags: ["#케이프타운", "#남아공", "#테이블마운틴"],
       createdAt: "2020-09-12",
     },
-    // 호주
     {
       id: "au1",
       userId: "user1",
@@ -133,10 +165,69 @@ export default function HomePage() {
       placeName: "Sydney",
       country: "Australia",
       emotion: "excited",
-      photos: ["/placeholder.svg?height=300&width=400"],
-      diary: "오페라 하우스와 해변 산책!",
-      tags: ["#시드니", "#호주"],
+      photos: [
+        "https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1523482580672-f109ba8cb9be?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1549180030-48bf079fb38a?w=800&h=600&fit=crop",
+      ],
+      diary:
+        "오페라 하우스와 해변 산책! 본다이 비치에서 서핑을 배우고 하버 브릿지를 건너며 시드니의 매력에 푹 빠졌다.",
+      tags: ["#시드니", "#호주", "#오페라하우스", "#해변"],
       createdAt: "2019-02-28",
+    },
+    {
+      id: "it1",
+      userId: "user1",
+      lat: 41.9028,
+      lng: 12.4964,
+      placeName: "Rome",
+      country: "Italy",
+      emotion: "nostalgic",
+      photos: [
+        "https://images.unsplash.com/photo-1552832230-c0197dd311b5?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1525874684015-58379d421a52?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1531572753322-ad063cecc140?w=800&h=600&fit=crop",
+      ],
+      diary:
+        "콜로세움을 보며 고대 로마 시대를 상상했다. 트레비 분수에 동전을 던지고 젤라또를 먹으며 로마의 골목길을 탐험했다. 역사가 살아 숨쉬는 도시.",
+      tags: ["#로마", "#이탈리아", "#콜로세움", "#역사"],
+      createdAt: "2023-09-22",
+    },
+    {
+      id: "th1",
+      userId: "user1",
+      lat: 18.7883,
+      lng: 98.9853,
+      placeName: "Chiang Mai",
+      country: "Thailand",
+      emotion: "peaceful",
+      photos: [
+        "https://images.unsplash.com/photo-1519451241324-20b4ea2c4220?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1598970605070-92d6b4610c48?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?w=800&h=600&fit=crop",
+      ],
+      diary:
+        "치앙마이의 사원들을 돌아보며 마음의 평화를 찾았다. 코끼리 보호소에서 코끼리들과 교감하고 나이트 마켓에서 맛있는 태국 음식을 즐겼다.",
+      tags: ["#치앙마이", "#태국", "#사원", "#평화"],
+      createdAt: "2024-01-18",
+    },
+    {
+      id: "is1",
+      userId: "user1",
+      lat: 64.1466,
+      lng: -21.9426,
+      placeName: "Reykjavik",
+      country: "Iceland",
+      emotion: "adventurous",
+      photos: [
+        "https://images.unsplash.com/photo-1504893524553-b855bce32c67?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1520208422220-d12a3c588e6c?w=800&h=600&fit=crop",
+      ],
+      diary:
+        "오로라를 보기 위해 찾은 아이슬란드. 블루 라군의 따뜻한 온천수에 몸을 담그고 골든 서클 투어로 게이시르와 굴포스 폭포를 경험했다. 자연의 경이로움!",
+      tags: ["#레이캬비크", "#아이슬란드", "#오로라", "#모험"],
+      createdAt: "2023-12-05",
     },
   ]);
 
@@ -179,6 +270,52 @@ export default function HomePage() {
     setTravelLogs((prev) => prev.filter((item) => item.id !== id));
     setIsModalOpen(false);
     setSelectedPin(null);
+  };
+
+  // 공유 기능
+  const handleShare = () => {
+    setIsShareModalOpen(true);
+  };
+
+  const handleGenerateImage = (platform: string) => {
+    // ShareImageGenerator가 자동으로 이미지를 생성합니다
+    console.log("Generating image for", platform);
+  };
+
+  const handleImageGenerated = (blob: Blob) => {
+    setShareImageBlob(blob);
+    // 이미지 다운로드
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `travelog-${selectedPin?.placeName || "share"}.png`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportPDF = () => {
+    if (selectedPin) {
+      const emotion = emotions[selectedPin.emotion as keyof typeof emotions];
+      exportTravelToPDF(selectedPin, emotion);
+    }
+  };
+
+  const handleCreateStory = () => {
+    setIsShareModalOpen(false);
+    setIsStoryCreatorOpen(true);
+  };
+
+  const handleSaveStory = (
+    story: Omit<TravelStory, "id" | "createdAt" | "updatedAt">
+  ) => {
+    const newStory: TravelStory = {
+      ...story,
+      id: Date.now().toString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setStories((prev) => [...prev, newStory]);
+    console.log("Story created:", newStory);
   };
 
   // 필터링된 여행 기록 계산
@@ -429,7 +566,37 @@ export default function HomePage() {
         emotions={emotions}
         onSave={handleSaveLog}
         onDelete={handleDeleteLog}
+        onShare={handleShare}
       />
+
+      {/* Share Modal */}
+      <ShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        travelLog={selectedPin}
+        onGenerateImage={handleGenerateImage}
+        onExportPDF={handleExportPDF}
+        onCreateStory={handleCreateStory}
+      />
+
+      {/* Story Creator */}
+      <StoryCreator
+        isOpen={isStoryCreatorOpen}
+        onClose={() => setIsStoryCreatorOpen(false)}
+        travelLogs={travelLogs}
+        onCreateStory={handleSaveStory}
+      />
+
+      {/* Share Image Generator (hidden) */}
+      {selectedPin && shareImageBlob === null && (
+        <ShareImageGenerator
+          travelLog={selectedPin}
+          emotion={emotions[selectedPin.emotion as keyof typeof emotions]}
+          template="modern"
+          platform="instagram"
+          onGenerated={handleImageGenerated}
+        />
+      )}
     </div>
   );
 }
