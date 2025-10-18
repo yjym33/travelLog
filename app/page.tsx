@@ -2,7 +2,15 @@
 
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MapPin, Calendar, Grid3X3, Map, Plus, BarChart3 } from "lucide-react";
+import {
+  MapPin,
+  Calendar,
+  Grid3X3,
+  Map,
+  Plus,
+  BarChart3,
+  Globe2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +19,7 @@ import TravelModal from "@/components/travel-modal";
 import GalleryView from "@/components/gallery-view";
 import TimelineView from "@/components/timeline-view";
 import StatsView from "@/components/stats-view";
+import GlobeView from "@/components/globe-view";
 import FilterPanel from "@/components/filter-panel";
 import ShareModal from "@/components/share-modal";
 import StoryCreator from "@/components/story-creator";
@@ -39,7 +48,7 @@ const emotions = {
 
 export default function HomePage() {
   const [viewMode, setViewMode] = useState<
-    "map" | "gallery" | "timeline" | "stats"
+    "map" | "gallery" | "timeline" | "stats" | "globe"
   >("map");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPin, setSelectedPin] = useState<TravelLog | null>(null);
@@ -396,6 +405,15 @@ export default function HomePage() {
                 <BarChart3 className="w-4 h-4 mr-2" />
                 통계
               </Button>
+              <Button
+                variant={viewMode === "globe" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("globe")}
+                className="text-slate-300 hover:text-white"
+              >
+                <Globe2 className="w-4 h-4 mr-2" />
+                3D 지구본
+              </Button>
               <div className="h-6 w-px bg-slate-600 mx-2" />
               <FilterPanel
                 filters={filters}
@@ -506,6 +524,22 @@ export default function HomePage() {
               transition={{ duration: 0.3 }}
             >
               <StatsView travelLogs={filteredTravelLogs} emotions={emotions} />
+            </motion.div>
+          )}
+
+          {viewMode === "globe" && (
+            <motion.div
+              key="globe"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <GlobeView
+                travelLogs={filteredTravelLogs}
+                emotions={emotions}
+                onPinClick={handlePinClick}
+              />
             </motion.div>
           )}
         </AnimatePresence>

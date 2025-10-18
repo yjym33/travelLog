@@ -11,6 +11,7 @@ import {
   Trash2,
   Upload,
   Share2,
+  Maximize2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +20,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { TravelLog, Emotion } from "@/types/travel";
 import Image from "next/image";
+import PhotoSlideshow from "./photo-slideshow";
 
 interface TravelModalProps {
   isOpen: boolean;
@@ -53,6 +55,8 @@ export default function TravelModal({
     createdAt: "",
   });
   const [newTag, setNewTag] = useState("");
+  const [slideshowOpen, setSlideshowOpen] = useState(false);
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -223,31 +227,57 @@ export default function TravelModal({
 
                   {/* Photos */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-3">
-                      <Camera className="w-4 h-4 inline mr-1" />
-                      사진
-                    </label>
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="text-sm font-medium text-slate-300">
+                        <Camera className="w-4 h-4 inline mr-1" />
+                        사진
+                      </label>
+                      {formData.photos.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedPhotoIndex(0);
+                            setSlideshowOpen(true);
+                          }}
+                          className="text-purple-400 hover:text-purple-300"
+                        >
+                          <Maximize2 className="w-4 h-4 mr-1" />
+                          전체화면
+                        </Button>
+                      )}
+                    </div>
                     <div className="grid grid-cols-2 gap-4 mb-4">
                       {formData.photos.map((photo, index) => (
                         <motion.div
                           key={index}
-                          className="relative group"
+                          className="relative group cursor-pointer"
                           initial={{ opacity: 0, scale: 0.8 }}
                           animate={{ opacity: 1, scale: 1 }}
                           transition={{ delay: index * 0.1 }}
+                          onClick={() => {
+                            setSelectedPhotoIndex(index);
+                            setSlideshowOpen(true);
+                          }}
                         >
                           <Image
                             src={photo || "/placeholder.svg"}
                             alt={`Photo ${index + 1}`}
                             width={200}
                             height={150}
-                            className="w-full h-32 object-cover rounded-lg"
+                            className="w-full h-32 object-cover rounded-lg transition-transform group-hover:scale-105"
                           />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center rounded-lg">
+                            <Maximize2 className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 bg-red-500/80 hover:bg-red-500 text-white"
-                            onClick={() => removePhoto(index)}
+                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 bg-red-500/80 hover:bg-red-500 text-white z-10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removePhoto(index);
+                            }}
                           >
                             <X className="w-3 h-3" />
                           </Button>
@@ -389,6 +419,15 @@ export default function TravelModal({
           </motion.div>
         </motion.div>
       )}
+
+      {/* Photo Slideshow */}
+      <PhotoSlideshow
+        photos={formData.photos}
+        initialIndex={selectedPhotoIndex}
+        isOpen={slideshowOpen}
+        onClose={() => setSlideshowOpen(false)}
+        placeName={formData.placeName}
+      />
     </AnimatePresence>
   );
 }
