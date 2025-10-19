@@ -128,12 +128,15 @@ export default function MapComponent({
   const mapRef = useRef<HTMLDivElement>(null);
 
   // Zoom control functions
+  const MAX_ZOOM = 4; // 최대 줌 제한 (너무 가까이 못가게)
+  const MIN_ZOOM = 0.5; // 최소 줌 제한
+
   const handleZoomIn = () => {
-    setZoom((prevZoom) => Math.min(prevZoom + 0.3, 8)); // 최대 8배
+    setZoom((prevZoom) => Math.min(prevZoom + 0.3, MAX_ZOOM));
   };
 
   const handleZoomOut = () => {
-    setZoom((prevZoom) => Math.max(prevZoom - 0.3, 0.5)); // 최소 0.5배
+    setZoom((prevZoom) => Math.max(prevZoom - 0.3, MIN_ZOOM));
   };
 
   const handleResetView = () => {
@@ -148,7 +151,9 @@ export default function MapComponent({
 
       e.preventDefault();
       const delta = e.deltaY > 0 ? -0.1 : 0.1;
-      setZoom((prevZoom) => Math.max(0.5, Math.min(8, prevZoom + delta)));
+      setZoom((prevZoom) =>
+        Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, prevZoom + delta))
+      );
     };
 
     const mapElement = mapRef.current;
@@ -217,7 +222,7 @@ export default function MapComponent({
   useEffect(() => {
     if (focusedLocation && isStoryMode) {
       setCenter([focusedLocation.lng, focusedLocation.lat]);
-      setZoom(2.5); // 스토리 모드일 때 적절한 줌 레벨
+      setZoom(1.5); // 스토리 모드: 주변 지역도 보이도록 적절한 줌 레벨
     } else if (!isStoryMode) {
       // 스토리 모드 종료 시 원래 뷰로 복귀
       setZoom(0.8);
@@ -241,7 +246,7 @@ export default function MapComponent({
         if (found) {
           const centroid = geoCentroid(found);
           setCenter([centroid[0], centroid[1]]);
-          setZoom(2.5);
+          setZoom(1.8); // 검색 시: 지역 단위로 적절하게
           setSelectedCountry &&
             setSelectedCountry(found.properties.name || found.properties.NAME);
         }
@@ -252,7 +257,7 @@ export default function MapComponent({
     const name = geo.properties.name || geo.properties.NAME || "";
     setSelectedCountry && setSelectedCountry(name);
     setCenter(geoCentroid(geo));
-    setZoom(2.5);
+    setZoom(1.8); // 국가 클릭 시: 지역 단위로 적절하게
   };
 
   const handleMapClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -284,9 +289,9 @@ export default function MapComponent({
   // 클러스터 클릭 핸들러
   const handleClusterClick = (cluster: Cluster) => {
     if (cluster.isCluster && cluster.logs.length > 1) {
-      // 클러스터면 줌인해서 마커들 분리
+      // 클러스터면 줌인해서 마커들 분리 (점진적 확대)
       setCenter([cluster.lng, cluster.lat]);
-      setZoom((prev) => Math.min(prev + 1, 8));
+      setZoom((prev) => Math.min(prev + 0.6, MAX_ZOOM));
     } else {
       // 단일 마커면 모달 열기
       onPinClick(cluster.logs[0]);
