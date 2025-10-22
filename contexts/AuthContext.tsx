@@ -55,27 +55,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAuthState((prev) => ({ ...prev, isLoading: true }));
 
         const response = await authApi.login(email, password);
+        const { user, accessToken } = response;
 
-        if (response.success && response.data) {
-          const { user, token } = response.data;
+        // 로컬 스토리지에 저장
+        localStorage.setItem("travelog_token", accessToken);
+        localStorage.setItem("travelog_user", JSON.stringify(user));
 
-          // 로컬 스토리지에 저장
-          localStorage.setItem("travelog_token", token);
-          localStorage.setItem("travelog_user", JSON.stringify(user));
+        setAuthState({
+          user,
+          token: accessToken,
+          isAuthenticated: true,
+          isLoading: false,
+        });
 
-          setAuthState({
-            user,
-            token,
-            isAuthenticated: true,
-            isLoading: false,
-          });
-
-          // 메인 페이지로 리다이렉트
-          router.push("/");
-        } else {
-          throw new Error(response.message || "로그인에 실패했습니다.");
-        }
+        // 메인 페이지로 리다이렉트
+        router.push("/");
       } catch (error) {
+        console.error("Login Error:", error);
         setAuthState((prev) => ({ ...prev, isLoading: false }));
         throw error;
       }
@@ -89,27 +85,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAuthState((prev) => ({ ...prev, isLoading: true }));
 
         const response = await authApi.register(email, password, username);
+        const { user, accessToken } = response;
 
-        if (response.success && response.data) {
-          const { user, token } = response.data;
+        // 로컬 스토리지에 저장
+        localStorage.setItem("travelog_token", accessToken);
+        localStorage.setItem("travelog_user", JSON.stringify(user));
 
-          // 로컬 스토리지에 저장
-          localStorage.setItem("travelog_token", token);
-          localStorage.setItem("travelog_user", JSON.stringify(user));
+        setAuthState({
+          user,
+          token: accessToken,
+          isAuthenticated: true,
+          isLoading: false,
+        });
 
-          setAuthState({
-            user,
-            token,
-            isAuthenticated: true,
-            isLoading: false,
-          });
-
-          // 메인 페이지로 리다이렉트
-          router.push("/");
-        } else {
-          throw new Error(response.message || "회원가입에 실패했습니다.");
-        }
+        // 메인 페이지로 리다이렉트
+        router.push("/");
       } catch (error) {
+        console.error("Register Error:", error);
         setAuthState((prev) => ({ ...prev, isLoading: false }));
         throw error;
       }

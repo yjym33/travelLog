@@ -175,6 +175,9 @@ export default function LoginPage() {
           <p className="text-sm text-slate-500">
             테스트용 계정: demo@travelog.com / password123
           </p>
+          <p className="text-xs text-slate-600 mt-2">
+            백엔드 연결 실패 시 Mock API가 자동으로 사용됩니다
+          </p>
         </motion.div>
       </motion.div>
     </div>

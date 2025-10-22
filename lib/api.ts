@@ -4,6 +4,7 @@ import type {
   RegisterRequest,
   RegisterResponse,
 } from "@/types/auth";
+import { mockLogin, mockRegister } from "./mockApi";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -37,13 +38,26 @@ class ApiClient {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.message || `HTTP error! status: ${response.status}`
-        );
+        console.error("API Error:", {
+          status: response.status,
+          statusText: response.statusText,
+          url,
+          errorData,
+        });
+
+        // NestJS 에러 응답 처리
+        const errorMessage = errorData.message
+          ? Array.isArray(errorData.message)
+            ? errorData.message[0]
+            : errorData.message
+          : `HTTP error! status: ${response.status}`;
+
+        throw new Error(errorMessage);
       }
 
       return await response.json();
     } catch (error) {
+      console.error("Network Error:", error);
       if (error instanceof Error) {
         throw error;
       }
@@ -53,17 +67,31 @@ class ApiClient {
 
   // 인증 관련 API
   async login(credentials: LoginRequest): Promise<LoginResponse> {
-    return this.request<LoginResponse>("/api/auth/login", {
-      method: "POST",
-      body: JSON.stringify(credentials),
-    });
+    try {
+      return await this.request<LoginResponse>("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify(credentials),
+      });
+    } catch (error) {
+      console.warn("백엔드 API 연결 실패, Mock API 사용:", error);
+      return await mockLogin(credentials.email, credentials.password);
+    }
   }
 
   async register(userData: RegisterRequest): Promise<RegisterResponse> {
-    return this.request<RegisterResponse>("/api/auth/register", {
-      method: "POST",
-      body: JSON.stringify(userData),
-    });
+    try {
+      return await this.request<RegisterResponse>("/api/auth/register", {
+        method: "POST",
+        body: JSON.stringify(userData),
+      });
+    } catch (error) {
+      console.warn("백엔드 API 연결 실패, Mock API 사용:", error);
+      return await mockRegister(
+        userData.email,
+        userData.password,
+        userData.username
+      );
+    }
   }
 
   // 토큰을 사용한 인증된 요청

@@ -2,9 +2,8 @@
 export interface User {
   id: string;
   email: string;
-  username: string;
-  createdAt: string;
-  updatedAt: string;
+  nickname: string;
+  profileImage?: string;
 }
 
 export interface LoginRequest {
@@ -13,12 +12,8 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
-  success: boolean;
-  message: string;
-  data?: {
-    user: User;
-    token: string;
-  };
+  accessToken: string;
+  user: User;
 }
 
 export interface RegisterRequest {
@@ -28,12 +23,8 @@ export interface RegisterRequest {
 }
 
 export interface RegisterResponse {
-  success: boolean;
-  message: string;
-  data?: {
-    user: User;
-    token: string;
-  };
+  accessToken: string;
+  user: User;
 }
 
 export interface AuthState {

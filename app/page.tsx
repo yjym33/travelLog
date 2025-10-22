@@ -381,7 +381,7 @@ export default function HomePage() {
                     <User className="w-4 h-4 text-white" />
                   </div>
                   <span className="text-slate-300 text-sm font-medium">
-                    {user?.username || "사용자"}
+                    {user?.nickname || "사용자"}
                   </span>
                   <Button
                     variant="ghost"
