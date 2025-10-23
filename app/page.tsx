@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   MapPin,
@@ -39,6 +39,7 @@ import {
   getFilterStats,
 } from "@/utils/filterUtils";
 import { useAuth } from "@/contexts/AuthContext";
+import { travelApi } from "@/lib/api";
 import AuthGuard from "@/components/auth-guard";
 
 const emotions = {
@@ -51,7 +52,7 @@ const emotions = {
 };
 
 export default function HomePage() {
-  const { user, logout } = useAuth();
+  const { user, logout, token } = useAuth();
   const [viewMode, setViewMode] = useState<
     "map" | "gallery" | "timeline" | "stats" | "globe"
   >("map");
@@ -62,188 +63,28 @@ export default function HomePage() {
   const [isStoryCreatorOpen, setIsStoryCreatorOpen] = useState(false);
   const [shareImageBlob, setShareImageBlob] = useState<Blob | null>(null);
   const [stories, setStories] = useState<TravelStory[]>([]);
-  const [travelLogs, setTravelLogs] = useState<TravelLog[]>([
-    {
-      id: "1",
-      userId: "user1",
-      lat: 37.5665,
-      lng: 126.978,
-      placeName: "서울 한강공원",
-      country: "South Korea",
-      emotion: "peaceful",
-      photos: [
-        "https://images.unsplash.com/photo-1517154421773-0529f29ea451?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1581889870280-6e63fb07b9da?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1583954177945-5a9a7b2b8e1f?w=800&h=600&fit=crop",
-      ],
-      diary:
-        "한강에서 바라본 노을이 정말 아름다웠다. 마음이 평온해지는 순간이었어. 강변을 따라 걸으며 서울의 야경을 감상했고, 치맥과 함께 완벽한 저녁을 보냈다.",
-      tags: ["#한강", "#노을", "#평온", "#서울"],
-      createdAt: "2024-03-15",
-    },
-    {
-      id: "2",
-      userId: "user1",
-      lat: 35.6762,
-      lng: 139.6503,
-      placeName: "도쿄 시부야",
-      country: "Japan",
-      emotion: "excited",
-      photos: [
-        "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1542051841857-5f90071e7989?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1503899036084-c55cdd92da26?w=800&h=600&fit=crop",
-      ],
-      diary:
-        "시부야 스크램블 교차로의 에너지가 정말 대단했다! 도시의 활기를 온몸으로 느꼈어. 네온사인이 빛나는 밤거리를 걸으며 일본의 현대적인 면모를 체험했다.",
-      tags: ["#도쿄", "#시부야", "#도시", "#일본"],
-      createdAt: "2024-02-20",
-    },
-    {
-      id: "us1",
-      userId: "user1",
-      lat: 40.7128,
-      lng: -74.006,
-      placeName: "New York",
-      country: "United States",
-      emotion: "happy",
-      photos: [
-        "https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1485871981521-5b1fd3805eee?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1522083165195-3424ed129620?w=800&h=600&fit=crop",
-      ],
-      diary:
-        "뉴욕의 자유의 여신상과 센트럴파크를 다녀왔다! 브로드웨이 뮤지컬도 보고 타임스퀘어의 화려한 불빛에 감탄했다. 진정한 도시의 에너지를 느꼈다.",
-      tags: ["#뉴욕", "#미국", "#자유의여신상"],
-      createdAt: "2023-07-10",
-    },
-    {
-      id: "fr1",
-      userId: "user1",
-      lat: 48.8566,
-      lng: 2.3522,
-      placeName: "Paris",
-      country: "France",
-      emotion: "romantic",
-      photos: [
-        "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1511739001486-6bfe10ce785f?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1549144511-f099e773c147?w=800&h=600&fit=crop",
-      ],
-      diary:
-        "에펠탑 야경이 너무 아름다웠다. 세느강을 따라 산책하며 파리의 낭만을 만끽했고, 작은 카페에서 크루아상과 커피를 즐기는 완벽한 하루였다.",
-      tags: ["#파리", "#프랑스", "#에펠탑", "#낭만"],
-      createdAt: "2022-05-15",
-    },
-    {
-      id: "br1",
-      userId: "user1",
-      lat: -22.9068,
-      lng: -43.1729,
-      placeName: "Rio de Janeiro",
-      country: "Brazil",
-      emotion: "adventurous",
-      photos: [
-        "https://images.unsplash.com/photo-1483729558449-99ef09a8c325?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1548963670-aaaa8f73a5e3?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1516306580123-e6e52b1b7b5f?w=800&h=600&fit=crop",
-      ],
-      diary:
-        "코파카바나 해변에서 축제를 즐겼다! 삼바 리듬에 맞춰 춤추고 카이피리냐를 마시며 브라질의 열정을 느꼈다. 크리스토 헤덴토르 상에서 본 풍경도 잊을 수 없다.",
-      tags: ["#리우", "#브라질", "#해변", "#축제"],
-      createdAt: "2021-11-03",
-    },
-    {
-      id: "za1",
-      userId: "user1",
-      lat: -33.9249,
-      lng: 18.4241,
-      placeName: "Cape Town",
-      country: "South Africa",
-      emotion: "peaceful",
-      photos: [
-        "https://images.unsplash.com/photo-1580060839134-75a5edca2e99?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1577948000111-9c970dfe3743?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1591528036424-7b445086aa8c?w=800&h=600&fit=crop",
-      ],
-      diary:
-        "테이블 마운틴에서 바라본 경치가 최고였다. 케이프 포인트에서 대서양과 인도양이 만나는 지점을 보며 자연의 웅장함에 압도되었다.",
-      tags: ["#케이프타운", "#남아공", "#테이블마운틴"],
-      createdAt: "2020-09-12",
-    },
-    {
-      id: "au1",
-      userId: "user1",
-      lat: -33.8688,
-      lng: 151.2093,
-      placeName: "Sydney",
-      country: "Australia",
-      emotion: "excited",
-      photos: [
-        "https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1523482580672-f109ba8cb9be?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1549180030-48bf079fb38a?w=800&h=600&fit=crop",
-      ],
-      diary:
-        "오페라 하우스와 해변 산책! 본다이 비치에서 서핑을 배우고 하버 브릿지를 건너며 시드니의 매력에 푹 빠졌다.",
-      tags: ["#시드니", "#호주", "#오페라하우스", "#해변"],
-      createdAt: "2019-02-28",
-    },
-    {
-      id: "it1",
-      userId: "user1",
-      lat: 41.9028,
-      lng: 12.4964,
-      placeName: "Rome",
-      country: "Italy",
-      emotion: "nostalgic",
-      photos: [
-        "https://images.unsplash.com/photo-1552832230-c0197dd311b5?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1525874684015-58379d421a52?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1531572753322-ad063cecc140?w=800&h=600&fit=crop",
-      ],
-      diary:
-        "콜로세움을 보며 고대 로마 시대를 상상했다. 트레비 분수에 동전을 던지고 젤라또를 먹으며 로마의 골목길을 탐험했다. 역사가 살아 숨쉬는 도시.",
-      tags: ["#로마", "#이탈리아", "#콜로세움", "#역사"],
-      createdAt: "2023-09-22",
-    },
-    {
-      id: "th1",
-      userId: "user1",
-      lat: 18.7883,
-      lng: 98.9853,
-      placeName: "Chiang Mai",
-      country: "Thailand",
-      emotion: "peaceful",
-      photos: [
-        "https://images.unsplash.com/photo-1519451241324-20b4ea2c4220?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1598970605070-92d6b4610c48?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?w=800&h=600&fit=crop",
-      ],
-      diary:
-        "치앙마이의 사원들을 돌아보며 마음의 평화를 찾았다. 코끼리 보호소에서 코끼리들과 교감하고 나이트 마켓에서 맛있는 태국 음식을 즐겼다.",
-      tags: ["#치앙마이", "#태국", "#사원", "#평화"],
-      createdAt: "2024-01-18",
-    },
-    {
-      id: "is1",
-      userId: "user1",
-      lat: 64.1466,
-      lng: -21.9426,
-      placeName: "Reykjavik",
-      country: "Iceland",
-      emotion: "adventurous",
-      photos: [
-        "https://images.unsplash.com/photo-1504893524553-b855bce32c67?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1520208422220-d12a3c588e6c?w=800&h=600&fit=crop",
-      ],
-      diary:
-        "오로라를 보기 위해 찾은 아이슬란드. 블루 라군의 따뜻한 온천수에 몸을 담그고 골든 서클 투어로 게이시르와 굴포스 폭포를 경험했다. 자연의 경이로움!",
-      tags: ["#레이캬비크", "#아이슬란드", "#오로라", "#모험"],
-      createdAt: "2023-12-05",
-    },
-  ]);
+  const [travelLogs, setTravelLogs] = useState<TravelLog[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // 여행 기록 로드 함수
+  const loadTravelLogs = async () => {
+    if (!token) return;
+
+    setIsLoading(true);
+    try {
+      const logs = await travelApi.getList(token);
+      setTravelLogs(logs);
+    } catch (error) {
+      console.error("여행 기록 로드 실패:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 컴포넌트 마운트 시 여행 기록 로드
+  React.useEffect(() => {
+    loadTravelLogs();
+  }, [token]);
 
   const handlePinClick = (pin: TravelLog) => {
     setSelectedPin(pin);
@@ -263,27 +104,36 @@ export default function HomePage() {
       diary: "",
       tags: [],
       createdAt: new Date().toISOString().split("T")[0],
+      updatedAt: new Date().toISOString().split("T")[0],
     });
     setIsModalOpen(true);
   };
 
-  const handleSaveLog = (log: TravelLog) => {
-    if (log.id) {
-      setTravelLogs((prev) =>
-        prev.map((item) => (item.id === log.id ? log : item))
-      );
-    } else {
-      const newLog = { ...log, id: Date.now().toString() };
-      setTravelLogs((prev) => [...prev, newLog]);
+  const handleSaveLog = async (log: TravelLog) => {
+    try {
+      if (log.id) {
+        // 수정된 경우 목록 새로고침
+        await loadTravelLogs();
+      } else {
+        // 새로 생성된 경우 목록 새로고침
+        await loadTravelLogs();
+      }
+      setIsModalOpen(false);
+      setSelectedPin(null);
+    } catch (error) {
+      console.error("여행 기록 저장 후 새로고침 실패:", error);
     }
-    setIsModalOpen(false);
-    setSelectedPin(null);
   };
 
-  const handleDeleteLog = (id: string) => {
-    setTravelLogs((prev) => prev.filter((item) => item.id !== id));
-    setIsModalOpen(false);
-    setSelectedPin(null);
+  const handleDeleteLog = async (id: string) => {
+    try {
+      // 삭제 후 목록 새로고침
+      await loadTravelLogs();
+      setIsModalOpen(false);
+      setSelectedPin(null);
+    } catch (error) {
+      console.error("여행 기록 삭제 후 새로고침 실패:", error);
+    }
   };
 
   // 공유 기능
@@ -453,168 +303,182 @@ export default function HomePage() {
 
         {/* Main Content */}
         <main className="container mx-auto px-4 py-6">
-          {/* 필터 결과 배너 */}
-          {isFiltered && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-4"
-            >
-              <Card className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/30 p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                      <MapPin className="w-5 h-5 text-purple-400" />
-                    </div>
-                    <div>
-                      <div className="text-sm text-slate-400">
-                        필터 적용 결과
-                      </div>
-                      <div className="text-lg font-semibold text-white">
-                        {filterStats.filtered}개 / {filterStats.total}개{" "}
-                        <span className="text-sm text-purple-400">
-                          ({filterStats.percentage}%)
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setFilters(initialFilterState)}
-                    className="text-slate-300 hover:text-white"
-                  >
-                    필터 초기화
-                  </Button>
-                </div>
-              </Card>
-            </motion.div>
-          )}
-
-          <AnimatePresence mode="wait">
-            {viewMode === "map" && (
-              <motion.div
-                key="map"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-              >
-                <WorldMap
-                  travelLogs={filteredTravelLogs}
-                  onPinClick={handlePinClick}
-                  onAddPin={handleAddPin}
-                  emotions={emotions}
-                />
-              </motion.div>
-            )}
-
-            {viewMode === "gallery" && (
-              <motion.div
-                key="gallery"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-              >
-                <GalleryView
-                  travelLogs={filteredTravelLogs}
-                  emotions={emotions}
-                  onLogClick={handlePinClick}
-                />
-              </motion.div>
-            )}
-
-            {viewMode === "timeline" && (
-              <motion.div
-                key="timeline"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-              >
-                <TimelineView
-                  travelLogs={filteredTravelLogs}
-                  emotions={emotions}
-                  onLogClick={handlePinClick}
-                />
-              </motion.div>
-            )}
-
-            {viewMode === "stats" && (
-              <motion.div
-                key="stats"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-              >
-                <StatsView
-                  travelLogs={filteredTravelLogs}
-                  emotions={emotions}
-                />
-              </motion.div>
-            )}
-
-            {viewMode === "globe" && (
-              <motion.div
-                key="globe"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-              >
-                <GlobeView
-                  travelLogs={filteredTravelLogs}
-                  emotions={emotions}
-                  onPinClick={handlePinClick}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Stats Card */}
-          <motion.div
-            className="fixed bottom-6 right-6 z-30"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.5 }}
-          >
-            <Card className="bg-slate-800/80 backdrop-blur-sm border-slate-700 p-4">
-              <div className="flex items-center gap-4 text-slate-300">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-purple-400">
-                    {filteredTravelLogs.length}
-                  </div>
-                  <div className="text-xs">
-                    {isFiltered ? "필터된 기록" : "여행 기록"}
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-pink-400">
-                    {new Set(filteredTravelLogs.map((log) => log.country)).size}
-                  </div>
-                  <div className="text-xs">방문 국가</div>
-                </div>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="text-center">
+                <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-slate-400">여행 기록을 불러오는 중...</p>
               </div>
-            </Card>
-          </motion.div>
+            </div>
+          ) : (
+            <>
+              {/* 필터 결과 배너 */}
+              {isFiltered && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-4"
+                >
+                  <Card className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/30 p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                          <MapPin className="w-5 h-5 text-purple-400" />
+                        </div>
+                        <div>
+                          <div className="text-sm text-slate-400">
+                            필터 적용 결과
+                          </div>
+                          <div className="text-lg font-semibold text-white">
+                            {filterStats.filtered}개 / {filterStats.total}개{" "}
+                            <span className="text-sm text-purple-400">
+                              ({filterStats.percentage}%)
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFilters(initialFilterState)}
+                        className="text-slate-300 hover:text-white"
+                      >
+                        필터 초기화
+                      </Button>
+                    </div>
+                  </Card>
+                </motion.div>
+              )}
 
-          {/* Add Button for Mobile */}
-          {viewMode === "map" && (
-            <motion.div
-              className="fixed bottom-6 left-6 z-30 md:hidden"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.5 }}
-            >
-              <Button
-                onClick={() => handleAddPin(37.5665, 126.978)}
-                className="w-14 h-14 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-lg"
+              <AnimatePresence mode="wait">
+                {viewMode === "map" && (
+                  <motion.div
+                    key="map"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <WorldMap
+                      travelLogs={filteredTravelLogs}
+                      onPinClick={handlePinClick}
+                      onAddPin={handleAddPin}
+                      emotions={emotions}
+                    />
+                  </motion.div>
+                )}
+
+                {viewMode === "gallery" && (
+                  <motion.div
+                    key="gallery"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <GalleryView
+                      travelLogs={filteredTravelLogs}
+                      emotions={emotions}
+                      onLogClick={handlePinClick}
+                    />
+                  </motion.div>
+                )}
+
+                {viewMode === "timeline" && (
+                  <motion.div
+                    key="timeline"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <TimelineView
+                      travelLogs={filteredTravelLogs}
+                      emotions={emotions}
+                      onLogClick={handlePinClick}
+                    />
+                  </motion.div>
+                )}
+
+                {viewMode === "stats" && (
+                  <motion.div
+                    key="stats"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <StatsView
+                      travelLogs={filteredTravelLogs}
+                      emotions={emotions}
+                    />
+                  </motion.div>
+                )}
+
+                {viewMode === "globe" && (
+                  <motion.div
+                    key="globe"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <GlobeView
+                      travelLogs={filteredTravelLogs}
+                      emotions={emotions}
+                      onPinClick={handlePinClick}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Stats Card */}
+              <motion.div
+                className="fixed bottom-6 right-6 z-30"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.5 }}
               >
-                <Plus className="w-6 h-6" />
-              </Button>
-            </motion.div>
+                <Card className="bg-slate-800/80 backdrop-blur-sm border-slate-700 p-4">
+                  <div className="flex items-center gap-4 text-slate-300">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-purple-400">
+                        {filteredTravelLogs.length}
+                      </div>
+                      <div className="text-xs">
+                        {isFiltered ? "필터된 기록" : "여행 기록"}
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-pink-400">
+                        {
+                          new Set(filteredTravelLogs.map((log) => log.country))
+                            .size
+                        }
+                      </div>
+                      <div className="text-xs">방문 국가</div>
+                    </div>
+                  </div>
+                </Card>
+              </motion.div>
+
+              {/* Add Button for Mobile */}
+              {viewMode === "map" && (
+                <motion.div
+                  className="fixed bottom-6 left-6 z-30 md:hidden"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.5 }}
+                >
+                  <Button
+                    onClick={() => handleAddPin(37.5665, 126.978)}
+                    className="w-14 h-14 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-lg"
+                  >
+                    <Plus className="w-6 h-6" />
+                  </Button>
+                </motion.div>
+              )}
+            </>
           )}
         </main>
 

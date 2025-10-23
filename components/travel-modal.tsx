@@ -18,7 +18,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import type { TravelLog, Emotion } from "@/types/travel";
+import type {
+  TravelLog,
+  Emotion,
+  CreateTravelRequest,
+  UpdateTravelRequest,
+} from "@/types/travel";
+import { travelApi, uploadApi } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import Image from "next/image";
 import PhotoSlideshow from "./photo-slideshow";
 
@@ -41,6 +48,7 @@ export default function TravelModal({
   onDelete,
   onShare,
 }: TravelModalProps) {
+  const { token } = useAuth();
   const [formData, setFormData] = useState<TravelLog>({
     id: "",
     userId: "",
@@ -57,6 +65,8 @@ export default function TravelModal({
   const [newTag, setNewTag] = useState("");
   const [slideshowOpen, setSlideshowOpen] = useState(false);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -65,14 +75,69 @@ export default function TravelModal({
     }
   }, [travelLog]);
 
-  const handleSave = () => {
-    if (!formData.placeName.trim()) return;
-    onSave(formData);
+  const handleSave = async () => {
+    if (!formData.placeName.trim() || !token) return;
+
+    setIsLoading(true);
+    try {
+      if (formData.id) {
+        // 수정
+        const updateData: UpdateTravelRequest = {
+          placeName: formData.placeName,
+          country: formData.country,
+          emotion: formData.emotion,
+          photos: formData.photos,
+          diary: formData.diary,
+          tags: formData.tags,
+        };
+        const updatedLog = await travelApi.update(
+          token,
+          formData.id,
+          updateData
+        );
+        onSave(updatedLog);
+      } else {
+        // 생성
+        const createData: CreateTravelRequest = {
+          lat: formData.lat,
+          lng: formData.lng,
+          placeName: formData.placeName,
+          country: formData.country,
+          emotion: formData.emotion,
+          photos: formData.photos,
+          diary: formData.diary,
+          tags: formData.tags,
+        };
+        const newLog = await travelApi.create(token, createData);
+        onSave(newLog);
+      }
+      onClose();
+    } catch (error) {
+      console.error("여행 기록 저장 실패:", error);
+      alert("여행 기록 저장에 실패했습니다. 다시 시도해주세요.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleDelete = () => {
-    if (formData.id && window.confirm("이 여행 기록을 삭제하시겠습니까?")) {
+  const handleDelete = async () => {
+    if (
+      !formData.id ||
+      !token ||
+      !window.confirm("이 여행 기록을 삭제하시겠습니까?")
+    )
+      return;
+
+    setIsLoading(true);
+    try {
+      await travelApi.delete(token, formData.id);
       onDelete(formData.id);
+      onClose();
+    } catch (error) {
+      console.error("여행 기록 삭제 실패:", error);
+      alert("여행 기록 삭제에 실패했습니다. 다시 시도해주세요.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -93,18 +158,30 @@ export default function TravelModal({
     }));
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files) return;
-    const fileArr = Array.from(files);
-    fileArr.forEach((file) => {
-      const url = URL.createObjectURL(file);
+    if (!files || !token) return;
+
+    setUploadingPhotos(true);
+    try {
+      const fileArr = Array.from(files);
+      const uploadPromises = fileArr.map((file) =>
+        uploadApi.uploadSingle(token, file)
+      );
+      const uploadResults = await Promise.all(uploadPromises);
+
+      const newPhotoUrls = uploadResults.map((result) => result.url);
       setFormData((prev) => ({
         ...prev,
-        photos: [...prev.photos, url],
+        photos: [...prev.photos, ...newPhotoUrls],
       }));
-    });
-    e.target.value = "";
+    } catch (error) {
+      console.error("이미지 업로드 실패:", error);
+      alert("이미지 업로드에 실패했습니다. 다시 시도해주세요.");
+    } finally {
+      setUploadingPhotos(false);
+      e.target.value = "";
+    }
   };
 
   const handlePhotoUpload = () => {
@@ -296,10 +373,11 @@ export default function TravelModal({
                       type="button"
                       variant="outline"
                       onClick={handlePhotoUpload}
-                      className="w-full border-slate-600 text-slate-300 hover:bg-slate-800"
+                      disabled={uploadingPhotos}
+                      className="w-full border-slate-600 text-slate-300 hover:bg-slate-800 disabled:opacity-50"
                     >
                       <Upload className="w-4 h-4 mr-2" />
-                      사진 추가
+                      {uploadingPhotos ? "업로드 중..." : "사진 추가"}
                     </Button>
                   </div>
 
@@ -408,10 +486,10 @@ export default function TravelModal({
                   </Button>
                   <Button
                     onClick={handleSave}
-                    disabled={!formData.placeName.trim()}
-                    className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                    disabled={!formData.placeName.trim() || isLoading}
+                    className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-50"
                   >
-                    {formData.id ? "수정" : "저장"}
+                    {isLoading ? "저장 중..." : formData.id ? "수정" : "저장"}
                   </Button>
                 </div>
               </div>

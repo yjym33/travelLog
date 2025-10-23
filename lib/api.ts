@@ -4,6 +4,14 @@ import type {
   RegisterRequest,
   RegisterResponse,
 } from "@/types/auth";
+import type {
+  TravelLog,
+  CreateTravelRequest,
+  UpdateTravelRequest,
+  FilterTravelRequest,
+  TravelStatistics,
+  TravelResponse,
+} from "@/types/travel";
 import { mockLogin, mockRegister } from "./mockApi";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
@@ -120,4 +128,117 @@ export const authApi = {
 
   register: (email: string, password: string, username: string) =>
     apiClient.register({ email, password, username }),
+};
+
+// 여행 기록 관련 API
+export const travelApi = {
+  // 여행 기록 생성
+  create: (token: string, data: CreateTravelRequest): Promise<TravelResponse> =>
+    apiClient.authenticatedRequest<TravelResponse>("/api/travels", token, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  // 여행 기록 목록 조회 (필터링 포함)
+  getList: (
+    token: string,
+    filters?: FilterTravelRequest
+  ): Promise<TravelResponse[]> => {
+    const params = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          if (Array.isArray(value)) {
+            params.append(key, value.join(","));
+          } else {
+            params.append(key, value.toString());
+          }
+        }
+      });
+    }
+    const queryString = params.toString();
+    const endpoint = queryString
+      ? `/api/travels?${queryString}`
+      : "/api/travels";
+    return apiClient.authenticatedRequest<TravelResponse[]>(endpoint, token);
+  },
+
+  // 여행 기록 상세 조회
+  getOne: (token: string, id: string): Promise<TravelResponse> =>
+    apiClient.authenticatedRequest<TravelResponse>(`/api/travels/${id}`, token),
+
+  // 여행 기록 수정
+  update: (
+    token: string,
+    id: string,
+    data: UpdateTravelRequest
+  ): Promise<TravelResponse> =>
+    apiClient.authenticatedRequest<TravelResponse>(
+      `/api/travels/${id}`,
+      token,
+      {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }
+    ),
+
+  // 여행 기록 삭제
+  delete: (token: string, id: string): Promise<{ message: string }> =>
+    apiClient.authenticatedRequest<{ message: string }>(
+      `/api/travels/${id}`,
+      token,
+      {
+        method: "DELETE",
+      }
+    ),
+
+  // 여행 통계 조회
+  getStatistics: (token: string): Promise<TravelStatistics> =>
+    apiClient.authenticatedRequest<TravelStatistics>(
+      "/api/travels/statistics",
+      token
+    ),
+};
+
+// 파일 업로드 관련 API
+export const uploadApi = {
+  // 단일 이미지 업로드
+  uploadSingle: (
+    token: string,
+    file: File
+  ): Promise<{ success: boolean; url: string }> => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    return apiClient.authenticatedRequest<{ success: boolean; url: string }>(
+      "/api/upload/single",
+      token,
+      {
+        method: "POST",
+        headers: {}, // FormData는 Content-Type을 자동으로 설정
+        body: formData,
+      }
+    );
+  },
+
+  // 여러 이미지 업로드
+  uploadMultiple: (
+    token: string,
+    files: File[]
+  ): Promise<{ success: boolean; urls: string[] }> => {
+    const formData = new FormData();
+    files.forEach((file) => {
+      formData.append("files", file);
+    });
+
+    return apiClient.authenticatedRequest<{ success: boolean; urls: string[] }>(
+      "/api/upload/multiple",
+      token,
+      {
+        method: "POST",
+        headers: {}, // FormData는 Content-Type을 자동으로 설정
+        body: formData,
+      }
+    );
+  },
 };
