@@ -91,12 +91,13 @@ export default function HomePage() {
     setIsModalOpen(true);
   };
 
-  const handleAddPin = (lat: number, lng: number) => {
+  // 새로운 여행 기록 추가 (빈 데이터로 모달 열기)
+  const handleAddNewLog = () => {
     setSelectedPin({
       id: "",
       userId: "user1",
-      lat,
-      lng,
+      lat: 0,
+      lng: 0,
       placeName: "",
       country: "",
       emotion: "happy",
@@ -133,6 +134,28 @@ export default function HomePage() {
       setSelectedPin(null);
     } catch (error) {
       console.error("여행 기록 삭제 후 새로고침 실패:", error);
+    }
+  };
+
+  // 핀 제거 핸들러 (지도에서 직접 제거)
+  const handleRemovePin = async (id: string) => {
+    try {
+      await travelApi.delete(token!, id);
+      await loadTravelLogs();
+    } catch (error) {
+      console.error("핀 제거 실패:", error);
+    }
+  };
+
+  // 모든 핀 제거 핸들러
+  const handleRemoveAllPins = async () => {
+    try {
+      for (const log of travelLogs) {
+        await travelApi.delete(token!, log.id);
+      }
+      await loadTravelLogs();
+    } catch (error) {
+      console.error("모든 핀 제거 실패:", error);
     }
   };
 
@@ -294,6 +317,7 @@ export default function HomePage() {
                   <Globe2 className="w-4 h-4 mr-2" />
                   3D 지구본
                 </Button>
+
                 <div className="h-6 w-px bg-slate-600 mx-2" />
                 <FilterPanel
                   filters={filters}
@@ -368,7 +392,9 @@ export default function HomePage() {
                     <WorldMap
                       travelLogs={filteredTravelLogs}
                       onPinClick={handlePinClick}
-                      onAddPin={handleAddPin}
+                      onRemovePin={handleRemovePin}
+                      onRemoveAllPins={handleRemoveAllPins}
+                      onAddNewLog={handleAddNewLog}
                       emotions={emotions}
                     />
                   </motion.div>
@@ -468,17 +494,20 @@ export default function HomePage() {
                 </Card>
               </motion.div>
 
-              {/* Add Button for Mobile */}
-              {viewMode === "map" && (
+              {/* Add Button - 모든 뷰 모드에서 표시 */}
+              {(viewMode === "map" ||
+                viewMode === "gallery" ||
+                viewMode === "timeline") && (
                 <motion.div
-                  className="fixed bottom-6 left-6 z-30 md:hidden"
+                  className="fixed bottom-6 left-6 z-30"
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 0.5 }}
                 >
                   <Button
-                    onClick={() => handleAddPin(37.5665, 126.978)}
-                    className="w-14 h-14 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-lg"
+                    onClick={handleAddNewLog}
+                    className="w-14 h-14 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 shadow-lg"
+                    title="새 여행 기록 추가"
                   >
                     <Plus className="w-6 h-6" />
                   </Button>

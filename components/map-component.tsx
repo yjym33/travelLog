@@ -45,13 +45,14 @@ function getDistance(x1: number, y1: number, x2: number, y2: number): number {
 interface MapComponentProps {
   travelLogs: TravelLog[];
   onPinClick: (log: TravelLog) => void;
-  onAddPin: (lat: number, lng: number) => void;
+  onRemovePin?: (logId: string) => void;
   emotions: Record<string, Emotion>;
   search?: string;
   selectedCountry?: string | null;
   setSelectedCountry?: (name: string | null) => void;
   focusedLocation?: { lat: number; lng: number } | null;
   isStoryMode?: boolean;
+  isRemoveMode?: boolean;
 }
 
 // 클러스터링 함수 - 줌 레벨에 따라 마커 그룹화
@@ -109,13 +110,14 @@ function clusterMarkers(
 export default function MapComponent({
   travelLogs,
   onPinClick,
-  onAddPin,
+  onRemovePin,
   emotions,
   search = "",
   selectedCountry = null,
   setSelectedCountry,
   focusedLocation = null,
   isStoryMode = false,
+  isRemoveMode = false,
 }: MapComponentProps) {
   const [zoom, setZoom] = useState(0.8); // 기본 줌을 낮춰서 더 넓은 범위 표시
   const [center, setCenter] = useState<[number, number]>([0, 0]);
@@ -198,25 +200,96 @@ export default function MapComponent({
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   };
 
-  // 시간순 여행 경로
+  // 시간순 여행 경로 (긴 거리 경로 지원)
   const travelRoutes = useMemo(() => {
+    if (travelLogs.length < 2) return [];
+
     const sorted = [...travelLogs].sort(
       (a, b) =>
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
+
     const routes = [];
     for (let i = 0; i < sorted.length - 1; i++) {
       const current = sorted[i];
       const next = sorted[i + 1];
-      routes.push({
-        from: [current.lng, current.lat] as [number, number],
-        to: [next.lng, next.lat] as [number, number],
-        color: emotions[current.emotion]?.color || "#8b5cf6",
-        index: i,
-      });
+
+      // 경로가 지구 반대편을 지나는 경우 처리
+      const lngDiff = Math.abs(next.lng - current.lng);
+      const shouldWrap = lngDiff > 180;
+
+      if (shouldWrap) {
+        // 경로를 두 부분으로 나누어 표시 (지구 반대편 경로)
+        const midLng = current.lng > 0 ? 180 : -180;
+
+        routes.push({
+          from: [current.lng, current.lat] as [number, number],
+          to: [midLng, current.lat] as [number, number],
+          color: emotions[current.emotion]?.color || "#8b5cf6",
+          index: i,
+          isWrapped: true,
+          part: 1,
+        });
+
+        routes.push({
+          from: [midLng, next.lat] as [number, number],
+          to: [next.lng, next.lat] as [number, number],
+          color: emotions[current.emotion]?.color || "#8b5cf6",
+          index: i,
+          isWrapped: true,
+          part: 2,
+        });
+      } else {
+        // 일반 경로
+        routes.push({
+          from: [current.lng, current.lat] as [number, number],
+          to: [next.lng, next.lat] as [number, number],
+          color: emotions[current.emotion]?.color || "#8b5cf6",
+          index: i,
+          isWrapped: false,
+        });
+      }
     }
     return routes;
   }, [travelLogs, emotions]);
+
+  // 지도 범위 자동 조정 함수
+  const adjustMapBounds = (logs: TravelLog[]) => {
+    if (logs.length === 0) return;
+
+    const lats = logs.map((log) => log.lat);
+    const lngs = logs.map((log) => log.lng);
+
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs);
+    const maxLng = Math.max(...lngs);
+
+    // 경계에 여유 공간 추가
+    const latPadding = Math.max((maxLat - minLat) * 0.1, 5);
+    const lngPadding = Math.max((maxLng - minLng) * 0.1, 5);
+
+    const centerLat = (minLat + maxLat) / 2;
+    const centerLng = (minLng + maxLng) / 2;
+
+    // 지도 중심점과 줌 레벨 자동 조정
+    setCenter([centerLng, centerLat]);
+
+    // 적절한 줌 레벨 계산
+    const latRange = maxLat - minLat + latPadding * 2;
+    const lngRange = maxLng - minLng + lngPadding * 2;
+    const maxRange = Math.max(latRange, lngRange);
+
+    const zoomLevel = Math.max(0.5, Math.min(3, 180 / maxRange));
+    setZoom(zoomLevel);
+  };
+
+  // 여행 기록이 추가될 때 지도 범위 자동 조정
+  useEffect(() => {
+    if (travelLogs.length > 0 && !isStoryMode) {
+      adjustMapBounds(travelLogs);
+    }
+  }, [travelLogs.length, isStoryMode]);
 
   // Focus on location in story mode
   useEffect(() => {
@@ -260,17 +333,53 @@ export default function MapComponent({
     setZoom(1.8); // 국가 클릭 시: 지역 단위로 적절하게
   };
 
-  const handleMapClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+  // 바다 영역 체크 함수
+  const isOverOcean = (lat: number, lng: number): boolean => {
+    // 주요 대륙 영역 정의 (더 정확한 경계)
+    const landRegions = [
+      // 아시아 (더 정확한 경계)
+      { minLat: -10, maxLat: 75, minLng: 60, maxLng: 180 },
+      { minLat: -10, maxLat: 75, minLng: -180, maxLng: -60 },
 
-    // Convert click position to approximate lat/lng (simplified)
-    const lat = 90 - (y / rect.height) * 180;
-    const lng = (x / rect.width) * 360 - 180;
+      // 유럽
+      { minLat: 35, maxLat: 75, minLng: -25, maxLng: 40 },
 
-    onAddPin(lat, lng);
+      // 아프리카
+      { minLat: -35, maxLat: 35, minLng: -20, maxLng: 55 },
+
+      // 북아메리카
+      { minLat: 15, maxLat: 75, minLng: -170, maxLng: -50 },
+
+      // 남아메리카
+      { minLat: -55, maxLat: 15, minLng: -85, maxLng: -30 },
+
+      // 오세아니아
+      { minLat: -50, maxLat: -10, minLng: 110, maxLng: 180 },
+      { minLat: -50, maxLat: -10, minLng: -180, maxLng: -120 },
+    ];
+
+    return !landRegions.some(
+      (region) =>
+        lat >= region.minLat &&
+        lat <= region.maxLat &&
+        lng >= region.minLng &&
+        lng <= region.maxLng
+    );
   };
+
+  // 좌표 검증 함수
+  const validateCoordinates = (lat: number, lng: number): boolean => {
+    return (
+      lat >= -85 &&
+      lat <= 85 &&
+      lng >= -180 &&
+      lng <= 180 &&
+      !isNaN(lat) &&
+      !isNaN(lng)
+    );
+  };
+
+  // 핀 추가 모드가 제거되었으므로 handleMapClick 함수도 제거
 
   // 마커 호버 핸들러
   const handleMarkerHover = (
@@ -288,13 +397,40 @@ export default function MapComponent({
 
   // 클러스터 클릭 핸들러
   const handleClusterClick = (cluster: Cluster) => {
-    if (cluster.isCluster && cluster.logs.length > 1) {
-      // 클러스터면 줌인해서 마커들 분리 (점진적 확대)
-      setCenter([cluster.lng, cluster.lat]);
-      setZoom((prev) => Math.min(prev + 0.6, MAX_ZOOM));
+    if (isRemoveMode) {
+      // 제거 모드일 때 핀 제거
+      if (cluster.logs.length === 1 && onRemovePin) {
+        if (
+          confirm(
+            `"${
+              cluster.logs[0].placeName || "여행 기록"
+            }"을(를) 삭제하시겠습니까?`
+          )
+        ) {
+          onRemovePin(cluster.logs[0].id);
+        }
+      } else if (cluster.logs.length > 1) {
+        // 클러스터인 경우 모든 핀 제거 확인
+        if (
+          confirm(
+            `이 지역의 모든 여행 기록 ${cluster.logs.length}개를 삭제하시겠습니까?`
+          )
+        ) {
+          cluster.logs.forEach((log) => {
+            if (onRemovePin) onRemovePin(log.id);
+          });
+        }
+      }
     } else {
-      // 단일 마커면 모달 열기
-      onPinClick(cluster.logs[0]);
+      // 일반 모드
+      if (cluster.isCluster && cluster.logs.length > 1) {
+        // 클러스터면 줌인해서 마커들 분리 (점진적 확대)
+        setCenter([cluster.lng, cluster.lat]);
+        setZoom((prev) => Math.min(prev + 0.6, MAX_ZOOM));
+      } else {
+        // 단일 마커면 모달 열기
+        onPinClick(cluster.logs[0]);
+      }
     }
   };
 
@@ -412,10 +548,35 @@ export default function MapComponent({
           </div>
         )}
 
+      <style jsx>{`
+        @keyframes pulse {
+          0% {
+            transform: scale(1);
+            opacity: 1;
+          }
+          50% {
+            transform: scale(1.2);
+            opacity: 0.7;
+          }
+          100% {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+        @keyframes dash {
+          to {
+            stroke-dashoffset: -100;
+          }
+        }
+      `}</style>
       <div
         ref={mapRef}
-        className="relative w-full h-full cursor-crosshair"
-        style={{ background: "#181818" }}
+        className={`relative w-full h-full ${
+          isRemoveMode ? "cursor-pointer" : "cursor-pointer"
+        }`}
+        style={{
+          background: "#181818",
+        }}
       >
         <ComposableMap
           projection="geoMercator"
@@ -458,17 +619,18 @@ export default function MapComponent({
                       );
                     })}
 
-                    {/* 여행 경로 연결선 */}
+                    {/* 여행 경로 연결선 (개선된 버전) */}
                     {showRoutes &&
                       travelRoutes.map((route, index) => (
                         <Line
-                          key={`route-${index}`}
+                          key={`route-${route.index}-${route.part || 0}`}
                           from={route.from}
                           to={route.to}
                           stroke={route.color}
-                          strokeWidth={2}
+                          strokeWidth={route.isWrapped ? 1.5 : 2}
                           strokeLinecap="round"
-                          strokeDasharray="5,5"
+                          strokeDasharray={route.isWrapped ? "3,3" : "5,5"}
+                          strokeOpacity={route.isWrapped ? 0.7 : 0.8}
                           style={{
                             animation: `dash 20s linear infinite`,
                           }}

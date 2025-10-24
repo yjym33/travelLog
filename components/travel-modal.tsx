@@ -67,6 +67,10 @@ export default function TravelModal({
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
+
+  // 도시명 검색을 위한 상태
+  const [citySearch, setCitySearch] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -74,6 +78,42 @@ export default function TravelModal({
       setFormData(travelLog);
     }
   }, [travelLog]);
+
+  // 도시명으로 좌표 검색하는 함수
+  const searchCityCoordinates = async (cityName: string) => {
+    if (!cityName.trim()) return;
+
+    setIsSearching(true);
+    try {
+      // OpenStreetMap Nominatim API 사용
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+          cityName
+        )}&limit=1`
+      );
+      const data = await response.json();
+
+      if (data.length > 0) {
+        const { lat, lon, display_name } = data[0];
+        setFormData((prev) => ({
+          ...prev,
+          lat: parseFloat(lat),
+          lng: parseFloat(lon),
+          placeName: prev.placeName || cityName,
+          country: prev.country || display_name.split(", ").pop() || "",
+        }));
+        console.log("도시 검색 성공:", { cityName, lat, lon, display_name });
+      } else {
+        console.log("도시를 찾을 수 없습니다:", cityName);
+        alert("해당 도시를 찾을 수 없습니다. 다른 이름으로 시도해보세요.");
+      }
+    } catch (error) {
+      console.error("도시 검색 실패:", error);
+      alert("도시 검색 중 오류가 발생했습니다.");
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!formData.placeName.trim() || !token) return;
@@ -251,7 +291,79 @@ export default function TravelModal({
                 </div>
 
                 <div className="space-y-6">
-                  {/* Place Name */}
+                  {/* 도시명 검색 */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                      <MapPin className="w-4 h-4 inline mr-1" />
+                      도시명 검색 (좌표 자동 설정)
+                    </label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={citySearch}
+                        onChange={(e) => setCitySearch(e.target.value)}
+                        placeholder="예: 서울, Tokyo, New York, 파리"
+                        className="bg-slate-800 border-slate-600 text-white"
+                        onKeyPress={(e) =>
+                          e.key === "Enter" && searchCityCoordinates(citySearch)
+                        }
+                      />
+                      <Button
+                        onClick={() => searchCityCoordinates(citySearch)}
+                        disabled={isSearching || !citySearch.trim()}
+                        className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        {isSearching ? "검색 중..." : "검색"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* 좌표 직접 입력 */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                      <MapPin className="w-4 h-4 inline mr-1" />
+                      좌표 직접 입력
+                    </label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs text-slate-400 mb-1">
+                          위도 (Latitude)
+                        </label>
+                        <Input
+                          type="number"
+                          step="any"
+                          value={formData.lat || ""}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              lat: parseFloat(e.target.value) || 0,
+                            }))
+                          }
+                          placeholder="37.5665"
+                          className="bg-slate-800 border-slate-600 text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-slate-400 mb-1">
+                          경도 (Longitude)
+                        </label>
+                        <Input
+                          type="number"
+                          step="any"
+                          value={formData.lng || ""}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              lng: parseFloat(e.target.value) || 0,
+                            }))
+                          }
+                          placeholder="126.9780"
+                          className="bg-slate-800 border-slate-600 text-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 장소명 */}
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-2">
                       <MapPin className="w-4 h-4 inline mr-1" />
@@ -459,6 +571,35 @@ export default function TravelModal({
                       className="bg-slate-800 border-slate-600 text-white"
                     />
                   </div>
+
+                  {/* 지도 미리보기 */}
+                  {formData.lat !== 0 && formData.lng !== 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        <MapPin className="w-4 h-4 inline mr-1" />
+                        위치 미리보기
+                      </label>
+                      <div className="w-full h-48 bg-slate-800 rounded-lg overflow-hidden border border-slate-600">
+                        <iframe
+                          src={`https://www.openstreetmap.org/export/embed.html?bbox=${
+                            formData.lng - 0.01
+                          },${formData.lat - 0.01},${formData.lng + 0.01},${
+                            formData.lat + 0.01
+                          }&layer=mapnik&marker=${formData.lat},${
+                            formData.lng
+                          }`}
+                          width="100%"
+                          height="100%"
+                          style={{ border: 0 }}
+                          title="위치 미리보기"
+                        />
+                      </div>
+                      <div className="text-xs text-slate-400 mt-1">
+                        좌표: {formData.lat.toFixed(6)},{" "}
+                        {formData.lng.toFixed(6)}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Share Section - Only for existing logs */}
