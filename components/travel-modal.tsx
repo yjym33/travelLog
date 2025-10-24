@@ -20,7 +20,6 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type {
   TravelLog,
-  Emotion,
   CreateTravelRequest,
   UpdateTravelRequest,
 } from "@/types/travel";
@@ -33,7 +32,7 @@ interface TravelModalProps {
   isOpen: boolean;
   onClose: () => void;
   travelLog: TravelLog | null;
-  emotions: Record<string, Emotion>;
+  emotions: Record<string, { color: string; emoji: string; label: string }>;
   onSave: (log: TravelLog) => void;
   onDelete: (id: string) => void;
   onShare?: () => void;
@@ -61,6 +60,7 @@ export default function TravelModal({
     diary: "",
     tags: [],
     createdAt: "",
+    updatedAt: "",
   });
   const [newTag, setNewTag] = useState("");
   const [slideshowOpen, setSlideshowOpen] = useState(false);
@@ -196,7 +196,7 @@ export default function TravelModal({
   };
 
   return (
-    <AnimatePresence>
+    <AnimatePresence mode="wait">
       {isOpen && (
         <motion.div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -325,9 +325,9 @@ export default function TravelModal({
                       )}
                     </div>
                     <div className="grid grid-cols-2 gap-4 mb-4">
-                      {formData.photos.map((photo, index) => (
+                      {formData.photos?.map((photo, index) => (
                         <motion.div
-                          key={index}
+                          key={`photo-${index}-${photo}`}
                           className="relative group cursor-pointer"
                           initial={{ opacity: 0, scale: 0.8 }}
                           animate={{ opacity: 1, scale: 1 }}
@@ -407,9 +407,9 @@ export default function TravelModal({
                       태그
                     </label>
                     <div className="flex flex-wrap gap-2 mb-3">
-                      {formData.tags.map((tag, index) => (
+                      {formData.tags?.map((tag, index) => (
                         <Badge
-                          key={index}
+                          key={`tag-${index}-${tag}`}
                           variant="secondary"
                           className="bg-slate-700 text-slate-200 hover:bg-slate-600"
                         >

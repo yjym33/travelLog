@@ -93,7 +93,7 @@ export default function PhotoSlideshow({
   if (!isOpen || photos.length === 0) return null;
 
   return (
-    <AnimatePresence>
+    <AnimatePresence mode="wait">
       {isOpen && (
         <motion.div
           className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-sm"

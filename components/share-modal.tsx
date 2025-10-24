@@ -30,6 +30,8 @@ interface ShareModalProps {
   onGenerateImage: (platform: string) => void;
   onExportPDF: () => void;
   onCreateStory: () => void;
+  onDownloadImage?: () => void;
+  shareImageBlob?: Blob | null;
 }
 
 export default function ShareModal({
@@ -39,6 +41,8 @@ export default function ShareModal({
   onGenerateImage,
   onExportPDF,
   onCreateStory,
+  onDownloadImage,
+  shareImageBlob,
 }: ShareModalProps) {
   const [shareSettings, setShareSettings] = useState<ShareSettings>({
     isPublic: false,
@@ -254,6 +258,21 @@ export default function ShareModal({
                           URL 공유하기
                         </div>
                       </button>
+
+                      {shareImageBlob && onDownloadImage && (
+                        <button
+                          onClick={onDownloadImage}
+                          className="p-4 bg-gradient-to-br from-orange-500/20 to-orange-600/20 border border-orange-500/30 rounded-lg hover:from-orange-500/30 hover:to-orange-600/30 transition-all"
+                        >
+                          <Download className="w-6 h-6 text-orange-400 mb-2" />
+                          <div className="text-sm font-medium text-white">
+                            이미지 다운로드
+                          </div>
+                          <div className="text-xs text-slate-400">
+                            PNG 파일 저장
+                          </div>
+                        </button>
+                      )}
                     </div>
                   </div>
 

@@ -146,15 +146,21 @@ export default function HomePage() {
     console.log("Generating image for", platform);
   };
 
+  const handleDownloadImage = () => {
+    if (shareImageBlob) {
+      const url = URL.createObjectURL(shareImageBlob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `travelog-${selectedPin?.placeName || "share"}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  };
+
   const handleImageGenerated = (blob: Blob) => {
     setShareImageBlob(blob);
-    // 이미지 다운로드
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `travelog-${selectedPin?.placeName || "share"}.png`;
-    a.click();
-    URL.revokeObjectURL(url);
+    // 이미지는 생성만 하고 자동 다운로드는 하지 않음
+    // 사용자가 명시적으로 다운로드를 요청할 때만 실행
   };
 
   const handleExportPDF = () => {
@@ -504,6 +510,8 @@ export default function HomePage() {
           onGenerateImage={handleGenerateImage}
           onExportPDF={handleExportPDF}
           onCreateStory={handleCreateStory}
+          onDownloadImage={handleDownloadImage}
+          shareImageBlob={shareImageBlob}
         />
 
         {/* Story Creator */}
@@ -514,8 +522,8 @@ export default function HomePage() {
           onCreateStory={handleSaveStory}
         />
 
-        {/* Share Image Generator (hidden) */}
-        {selectedPin && shareImageBlob === null && (
+        {/* Share Image Generator (hidden) - 공유 모달이 열렸을 때만 렌더링 */}
+        {selectedPin && isShareModalOpen && shareImageBlob === null && (
           <ShareImageGenerator
             travelLog={selectedPin}
             emotion={emotions[selectedPin.emotion as keyof typeof emotions]}
