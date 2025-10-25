@@ -14,6 +14,28 @@ import type {
 } from "@/types/travel";
 import { mockLogin, mockRegister } from "./mockApi";
 
+// AI 분석 관련 타입 정의
+export interface AnalyzeImageRequest {
+  imageUrl: string;
+}
+
+export interface AnalyzeImageResponse {
+  success: boolean;
+  tags: string[];
+  confidence: number;
+}
+
+export interface AnalyzeEmotionRequest {
+  text: string;
+}
+
+export interface AnalyzeEmotionResponse {
+  success: boolean;
+  emotion: string;
+  confidence: number;
+  keywords: string[];
+}
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 class ApiClient {
@@ -42,10 +64,35 @@ class ApiClient {
     };
 
     try {
-      const response = await fetch(url, config);
+      console.log("API Request:", {
+        url,
+        method: config.method,
+        headers: config.headers,
+        body: config.body instanceof FormData ? "FormData" : config.body,
+      });
+
+      const response = await fetch(url, {
+        ...config,
+        mode: "cors",
+        credentials: "include",
+      });
+
+      console.log("API Response:", {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries()),
+      });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        let errorData = {};
+        try {
+          const text = await response.text();
+          errorData = text ? JSON.parse(text) : {};
+        } catch (e) {
+          console.warn("Could not parse error response as JSON");
+        }
+
         console.error("API Error:", {
           status: response.status,
           statusText: response.statusText,
@@ -53,11 +100,18 @@ class ApiClient {
           errorData,
         });
 
+        // CORS 관련 오류 처리
+        if (response.status === 0 || response.status === undefined) {
+          throw new Error(
+            "CORS 오류가 발생했습니다. 브라우저의 CORS 정책을 확인해주세요."
+          );
+        }
+
         // NestJS 에러 응답 처리
-        const errorMessage = errorData.message
-          ? Array.isArray(errorData.message)
-            ? errorData.message[0]
-            : errorData.message
+        const errorMessage = (errorData as any)?.message
+          ? Array.isArray((errorData as any).message)
+            ? (errorData as any).message[0]
+            : (errorData as any).message
           : `HTTP error! status: ${response.status}`;
 
         throw new Error(errorMessage);
@@ -66,6 +120,16 @@ class ApiClient {
       return await response.json();
     } catch (error) {
       console.error("Network Error:", error);
+      if (error instanceof TypeError && error.message === "Failed to fetch") {
+        throw new Error(
+          "서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인해주세요."
+        );
+      }
+      if (error instanceof Error && error.message.includes("CORS")) {
+        throw new Error(
+          "CORS 오류가 발생했습니다. 브라우저의 CORS 정책을 확인해주세요."
+        );
+      }
       if (error instanceof Error) {
         throw error;
       }
@@ -203,22 +267,57 @@ export const travelApi = {
 // 파일 업로드 관련 API
 export const uploadApi = {
   // 단일 이미지 업로드
-  uploadSingle: (
+  uploadSingle: async (
     token: string,
     file: File
   ): Promise<{ success: boolean; url: string }> => {
     const formData = new FormData();
     formData.append("file", file);
 
-    return apiClient.authenticatedRequest<{ success: boolean; url: string }>(
-      "/api/upload/single",
-      token,
-      {
+    console.log("Uploading file:", {
+      name: file.name,
+      size: file.size,
+      type: file.type,
+    });
+
+    try {
+      // 직접 fetch 사용하여 CORS 문제 우회
+      const response = await fetch(`${API_BASE_URL}/api/upload/single`, {
         method: "POST",
-        headers: {}, // FormData는 Content-Type을 자동으로 설정
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
         body: formData,
+        mode: "cors",
+        credentials: "include",
+      });
+
+      console.log("Upload response:", {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Upload failed:", errorText);
+        throw new Error(
+          `Upload failed: ${response.status} ${response.statusText}`
+        );
       }
-    );
+
+      const result = await response.json();
+      console.log("Upload successful:", result);
+      return result;
+    } catch (error) {
+      console.error("Upload failed:", error);
+      if (error instanceof TypeError && error.message === "Failed to fetch") {
+        throw new Error(
+          "서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인해주세요."
+        );
+      }
+      throw error;
+    }
   },
 
   // 여러 이미지 업로드
@@ -241,4 +340,35 @@ export const uploadApi = {
       }
     );
   },
+};
+
+// AI 분석 관련 API
+export const aiApi = {
+  // 이미지 분석을 통한 자동 태그 생성
+  analyzeImage: (
+    token: string,
+    imageUrl: string
+  ): Promise<AnalyzeImageResponse> =>
+    apiClient.authenticatedRequest<AnalyzeImageResponse>(
+      "/api/ai/analyze-image",
+      token,
+      {
+        method: "POST",
+        body: JSON.stringify({ imageUrl }),
+      }
+    ),
+
+  // 일기 텍스트 감정 분석
+  analyzeEmotion: (
+    token: string,
+    text: string
+  ): Promise<AnalyzeEmotionResponse> =>
+    apiClient.authenticatedRequest<AnalyzeEmotionResponse>(
+      "/api/ai/analyze-emotion",
+      token,
+      {
+        method: "POST",
+        body: JSON.stringify({ text }),
+      }
+    ),
 };

@@ -23,7 +23,7 @@ import type {
   CreateTravelRequest,
   UpdateTravelRequest,
 } from "@/types/travel";
-import { travelApi, uploadApi } from "@/lib/api";
+import { travelApi, uploadApi, aiApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import Image from "next/image";
 import PhotoSlideshow from "./photo-slideshow";
@@ -71,6 +71,11 @@ export default function TravelModal({
   // 도시명 검색을 위한 상태
   const [citySearch, setCitySearch] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+
+  // AI 분석을 위한 상태
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
+  const [suggestedEmotion, setSuggestedEmotion] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -112,6 +117,59 @@ export default function TravelModal({
       alert("도시 검색 중 오류가 발생했습니다.");
     } finally {
       setIsSearching(false);
+    }
+  };
+
+  // AI 이미지 분석 함수
+  const analyzeImage = async (imageUrl: string) => {
+    if (!token) return;
+
+    setIsAnalyzing(true);
+    try {
+      const result = await aiApi.analyzeImage(token, imageUrl);
+      if (result.success) {
+        setSuggestedTags(result.tags);
+        console.log("AI 태그 생성:", result.tags);
+      }
+    } catch (error) {
+      console.error("이미지 분석 실패:", error);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // AI 감정 분석 함수
+  const analyzeEmotion = async (text: string) => {
+    if (!token || text.length < 10) return;
+
+    try {
+      const result = await aiApi.analyzeEmotion(token, text);
+      if (result.success) {
+        setSuggestedEmotion(result.emotion);
+        console.log("AI 감정 분석:", result.emotion, result.confidence);
+      }
+    } catch (error) {
+      console.error("감정 분석 실패:", error);
+    }
+  };
+
+  // AI 제안 태그 추가
+  const addSuggestedTag = (tag: string) => {
+    if (!formData.tags.includes(tag)) {
+      setFormData((prev) => ({
+        ...prev,
+        tags: [...prev.tags, tag],
+      }));
+    }
+  };
+
+  // AI 제안 감정 적용
+  const applySuggestedEmotion = () => {
+    if (suggestedEmotion) {
+      setFormData((prev) => ({
+        ...prev,
+        emotion: suggestedEmotion,
+      }));
     }
   };
 
@@ -202,22 +260,70 @@ export default function TravelModal({
     const files = e.target.files;
     if (!files || !token) return;
 
+    // 파일 크기 제한 체크 (10MB)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    const oversizedFiles = Array.from(files).filter(
+      (file) => file.size > maxSize
+    );
+
+    if (oversizedFiles.length > 0) {
+      alert(
+        `파일 크기가 너무 큽니다. 10MB 이하의 파일을 선택해주세요.\n큰 파일: ${oversizedFiles
+          .map((f) => f.name)
+          .join(", ")}`
+      );
+      e.target.value = "";
+      return;
+    }
+
     setUploadingPhotos(true);
     try {
       const fileArr = Array.from(files);
+      console.log(
+        "Starting upload for files:",
+        fileArr.map((f) => ({ name: f.name, size: f.size }))
+      );
+
       const uploadPromises = fileArr.map((file) =>
         uploadApi.uploadSingle(token, file)
       );
       const uploadResults = await Promise.all(uploadPromises);
+
+      console.log("Upload results:", uploadResults);
 
       const newPhotoUrls = uploadResults.map((result) => result.url);
       setFormData((prev) => ({
         ...prev,
         photos: [...prev.photos, ...newPhotoUrls],
       }));
+
+      // 첫 번째 사진에 대해 AI 분석 실행
+      if (newPhotoUrls.length > 0) {
+        await analyzeImage(newPhotoUrls[0]);
+      }
     } catch (error) {
       console.error("이미지 업로드 실패:", error);
-      alert("이미지 업로드에 실패했습니다. 다시 시도해주세요.");
+
+      let errorMessage = "이미지 업로드에 실패했습니다.";
+      if (error instanceof Error) {
+        if (error.message.includes("서버에 연결할 수 없습니다")) {
+          errorMessage =
+            "백엔드 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.";
+        } else if (error.message.includes("CORS")) {
+          errorMessage =
+            "CORS 오류가 발생했습니다. 브라우저를 새로고침하거나 다른 브라우저를 시도해주세요.";
+        } else if (error.message.includes("413")) {
+          errorMessage =
+            "파일 크기가 너무 큽니다. 더 작은 파일을 선택해주세요.";
+        } else if (error.message.includes("Failed to fetch")) {
+          errorMessage =
+            "네트워크 연결에 실패했습니다. 인터넷 연결을 확인해주세요.";
+        } else {
+          errorMessage = `업로드 실패: ${error.message}`;
+        }
+      }
+
+      alert(errorMessage);
     } finally {
       setUploadingPhotos(false);
       e.target.value = "";
@@ -236,7 +342,7 @@ export default function TravelModal({
   };
 
   return (
-    <AnimatePresence mode="wait">
+    <AnimatePresence>
       {isOpen && (
         <motion.div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -439,7 +545,7 @@ export default function TravelModal({
                     <div className="grid grid-cols-2 gap-4 mb-4">
                       {formData.photos?.map((photo, index) => (
                         <motion.div
-                          key={`photo-${index}-${photo}`}
+                          key={`photo-${index}-${photo.split("/").pop()}`}
                           className="relative group cursor-pointer"
                           initial={{ opacity: 0, scale: 0.8 }}
                           animate={{ opacity: 1, scale: 1 }}
@@ -500,17 +606,81 @@ export default function TravelModal({
                     </label>
                     <Textarea
                       value={formData.diary}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const newDiary = e.target.value;
                         setFormData((prev) => ({
                           ...prev,
-                          diary: e.target.value,
-                        }))
-                      }
+                          diary: newDiary,
+                        }));
+
+                        // 일기 텍스트가 충분할 때 AI 감정 분석 실행
+                        if (newDiary.length >= 10) {
+                          analyzeEmotion(newDiary);
+                        }
+                      }}
                       placeholder="이곳에서의 감정과 경험을 자유롭게 적어보세요..."
                       rows={4}
                       className="bg-slate-800 border-slate-600 text-white resize-none"
                     />
                   </div>
+
+                  {/* AI 제안 감정 */}
+                  {suggestedEmotion &&
+                    suggestedEmotion !== formData.emotion && (
+                      <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                            <span className="text-sm font-medium text-blue-300">
+                              AI 감정 제안
+                            </span>
+                          </div>
+                          <Button
+                            onClick={applySuggestedEmotion}
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            적용
+                          </Button>
+                        </div>
+                        <p className="text-sm text-blue-200">
+                          일기를 분석한 결과{" "}
+                          <strong>{emotions[suggestedEmotion]?.label}</strong>{" "}
+                          감정이 더 적합해 보입니다.
+                        </p>
+                      </div>
+                    )}
+
+                  {/* AI 제안 태그 */}
+                  {suggestedTags.length > 0 && (
+                    <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                        <span className="text-sm font-medium text-green-300">
+                          AI 태그 제안
+                        </span>
+                        {isAnalyzing && (
+                          <span className="text-xs text-green-400">
+                            분석 중...
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {suggestedTags.map((tag, index) => (
+                          <Button
+                            key={index}
+                            onClick={() => addSuggestedTag(tag)}
+                            size="sm"
+                            variant="outline"
+                            className="bg-green-600/20 border-green-500/50 text-green-200 hover:bg-green-600/30"
+                          >
+                            <Tag className="w-3 h-3 mr-1" />
+                            {tag}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Tags */}
                   <div>
@@ -521,7 +691,7 @@ export default function TravelModal({
                     <div className="flex flex-wrap gap-2 mb-3">
                       {formData.tags?.map((tag, index) => (
                         <Badge
-                          key={`tag-${index}-${tag}`}
+                          key={`tag-${index}-${tag.replace("#", "")}`}
                           variant="secondary"
                           className="bg-slate-700 text-slate-200 hover:bg-slate-600"
                         >
