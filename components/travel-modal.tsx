@@ -12,18 +12,25 @@ import {
   Upload,
   Share2,
   Maximize2,
+  Brain,
+  CheckCircle,
+  XCircle,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import type {
   TravelLog,
   CreateTravelRequest,
   UpdateTravelRequest,
 } from "@/types/travel";
 import { travelApi, uploadApi, aiApi } from "@/lib/api";
+import { imageAnalysisService } from "@/lib/imageAnalysis";
 import { useAuth } from "@/contexts/AuthContext";
 import Image from "next/image";
 import PhotoSlideshow from "./photo-slideshow";
@@ -76,6 +83,8 @@ export default function TravelModal({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
   const [suggestedEmotion, setSuggestedEmotion] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [analysisProgress, setAnalysisProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -120,19 +129,67 @@ export default function TravelModal({
     }
   };
 
-  // AI 이미지 분석 함수
+  // AI 이미지 분석 함수 (자체 구현)
   const analyzeImage = async (imageUrl: string) => {
     if (!token) return;
 
     setIsAnalyzing(true);
+    setAiError(null);
+    setAnalysisProgress(0);
+
     try {
-      const result = await aiApi.analyzeImage(token, imageUrl);
-      if (result.success) {
+      // 진행률 시뮬레이션
+      const progressInterval = setInterval(() => {
+        setAnalysisProgress((prev) => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return 90;
+          }
+          return prev + 10;
+        });
+      }, 200);
+
+      console.log("이미지 분석 시작:", imageUrl);
+
+      // 자체 AI 분석 서비스 사용
+      const result = await imageAnalysisService.analyzeImage(imageUrl);
+
+      clearInterval(progressInterval);
+      setAnalysisProgress(100);
+
+      if (result && result.tags && result.tags.length > 0) {
         setSuggestedTags(result.tags);
-        console.log("AI 태그 생성:", result.tags);
+        console.log("자체 AI 태그 생성 성공:", result.tags);
+      } else {
+        console.warn("AI 분석 결과가 비어있음, 기본 태그 사용");
+        setSuggestedTags(["#여행", "#추억", "#기록"]);
       }
+
+      // 성공 메시지 표시
+      setTimeout(() => {
+        setAnalysisProgress(0);
+      }, 1000);
     } catch (error) {
       console.error("이미지 분석 실패:", error);
+
+      // 에러 타입에 따른 구체적인 메시지
+      let errorMessage = "이미지 분석 중 오류가 발생했습니다.";
+      if (error instanceof Error) {
+        if (error.message.includes("모델")) {
+          errorMessage =
+            "AI 모델 로딩에 실패했습니다. 메타데이터 분석을 시도합니다.";
+        } else if (error.message.includes("이미지")) {
+          errorMessage = "이미지 로딩에 실패했습니다. URL을 확인해주세요.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+
+      setAiError(errorMessage);
+      setAnalysisProgress(0);
+
+      // 폴백: 기본 태그라도 제공
+      setSuggestedTags(["#여행", "#추억", "#기록"]);
     } finally {
       setIsAnalyzing(false);
     }
@@ -147,9 +204,16 @@ export default function TravelModal({
       if (result.success) {
         setSuggestedEmotion(result.emotion);
         console.log("AI 감정 분석:", result.emotion, result.confidence);
+      } else {
+        throw new Error(result.message || "감정 분석에 실패했습니다.");
       }
     } catch (error) {
       console.error("감정 분석 실패:", error);
+      setAiError(
+        error instanceof Error
+          ? error.message
+          : "감정 분석 중 오류가 발생했습니다."
+      );
     }
   };
 
@@ -170,7 +234,13 @@ export default function TravelModal({
         ...prev,
         emotion: suggestedEmotion,
       }));
+      setSuggestedEmotion(null);
     }
+  };
+
+  // AI 에러 초기화
+  const clearAiError = () => {
+    setAiError(null);
   };
 
   const handleSave = async () => {
@@ -624,13 +694,57 @@ export default function TravelModal({
                     />
                   </div>
 
+                  {/* AI 분석 상태 표시 */}
+                  {(isAnalyzing || aiError) && (
+                    <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Brain className="w-4 h-4 text-purple-400" />
+                        <span className="text-sm font-medium text-purple-300">
+                          AI 분석 중
+                        </span>
+                        {isAnalyzing && (
+                          <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
+                        )}
+                      </div>
+
+                      {isAnalyzing && analysisProgress > 0 && (
+                        <div className="mb-3">
+                          <Progress
+                            value={analysisProgress}
+                            className="h-2 bg-purple-900/30"
+                          />
+                          <p className="text-xs text-purple-200 mt-1">
+                            이미지를 분석하고 있습니다... {analysisProgress}%
+                          </p>
+                        </div>
+                      )}
+
+                      {aiError && (
+                        <div className="flex items-center justify-between text-red-300">
+                          <div className="flex items-center gap-2">
+                            <XCircle className="w-4 h-4" />
+                            <span className="text-sm">{aiError}</span>
+                          </div>
+                          <Button
+                            onClick={clearAiError}
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-300 hover:text-red-200 hover:bg-red-500/20"
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* AI 제안 감정 */}
                   {suggestedEmotion &&
                     suggestedEmotion !== formData.emotion && (
                       <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                            <CheckCircle className="w-4 h-4 text-blue-400" />
                             <span className="text-sm font-medium text-blue-300">
                               AI 감정 제안
                             </span>
@@ -654,31 +768,48 @@ export default function TravelModal({
                   {/* AI 제안 태그 */}
                   {suggestedTags.length > 0 && (
                     <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                        <span className="text-sm font-medium text-green-300">
-                          AI 태그 제안
-                        </span>
-                        {isAnalyzing && (
-                          <span className="text-xs text-green-400">
-                            분석 중...
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-green-400" />
+                          <span className="text-sm font-medium text-green-300">
+                            AI 태그 제안 ({suggestedTags.length}개)
                           </span>
-                        )}
+                        </div>
+                        <Button
+                          onClick={() => {
+                            suggestedTags.forEach((tag) =>
+                              addSuggestedTag(tag)
+                            );
+                            setSuggestedTags([]);
+                          }}
+                          size="sm"
+                          variant="outline"
+                          className="bg-green-600/20 border-green-500/50 text-green-200 hover:bg-green-600/30"
+                        >
+                          모두 추가
+                        </Button>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {suggestedTags.map((tag, index) => (
                           <Button
-                            key={index}
+                            key={`suggested-tag-${index}-${tag.replace(
+                              "#",
+                              ""
+                            )}`}
                             onClick={() => addSuggestedTag(tag)}
                             size="sm"
                             variant="outline"
-                            className="bg-green-600/20 border-green-500/50 text-green-200 hover:bg-green-600/30"
+                            className="bg-green-600/20 border-green-500/50 text-green-200 hover:bg-green-600/30 transition-all duration-200 hover:scale-105"
                           >
                             <Tag className="w-3 h-3 mr-1" />
                             {tag}
                           </Button>
                         ))}
                       </div>
+                      <p className="text-xs text-green-200 mt-2">
+                        💡 클릭하여 태그를 추가하거나 "모두 추가" 버튼으로 한
+                        번에 추가할 수 있습니다.
+                      </p>
                     </div>
                   )}
 

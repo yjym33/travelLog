@@ -23,6 +23,7 @@ export interface AnalyzeImageResponse {
   success: boolean;
   tags: string[];
   confidence: number;
+  message?: string;
 }
 
 export interface AnalyzeEmotionRequest {
@@ -34,6 +35,7 @@ export interface AnalyzeEmotionResponse {
   emotion: string;
   confidence: number;
   keywords: string[];
+  message?: string;
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
