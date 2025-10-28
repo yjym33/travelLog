@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Switch } from "@/components/ui/switch";
 import type {
   TravelLog,
   CreateTravelRequest,
@@ -85,6 +86,8 @@ export default function TravelModal({
   const [suggestedEmotion, setSuggestedEmotion] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState(0);
+  const [autoAnalyze, setAutoAnalyze] = useState(true); // 자동 AI 분석 설정
+  const [analyzedImages, setAnalyzedImages] = useState<Set<string>>(new Set()); // 분석된 이미지 추적
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -130,8 +133,14 @@ export default function TravelModal({
   };
 
   // AI 이미지 분석 함수 (자체 구현)
-  const analyzeImage = async (imageUrl: string) => {
+  const analyzeImage = async (imageUrl: string, isRetry: boolean = false) => {
     if (!token) return;
+
+    // 이미 분석된 이미지이고 재시도가 아닌 경우 스킵
+    if (!isRetry && analyzedImages.has(imageUrl)) {
+      console.log("이미 분석된 이미지입니다:", imageUrl);
+      return;
+    }
 
     setIsAnalyzing(true);
     setAiError(null);
@@ -160,6 +169,9 @@ export default function TravelModal({
       if (result && result.tags && result.tags.length > 0) {
         setSuggestedTags(result.tags);
         console.log("자체 AI 태그 생성 성공:", result.tags);
+
+        // 분석된 이미지로 표시
+        setAnalyzedImages((prev) => new Set([...prev, imageUrl]));
       } else {
         console.warn("AI 분석 결과가 비어있음, 기본 태그 사용");
         setSuggestedTags(["#여행", "#추억", "#기록"]);
@@ -193,6 +205,63 @@ export default function TravelModal({
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  // 모든 이미지에 대한 배치 분석
+  const analyzeAllImages = async () => {
+    if (formData.photos.length === 0) return;
+
+    setIsAnalyzing(true);
+    setAiError(null);
+    setAnalysisProgress(0);
+
+    try {
+      const allTags = new Set<string>();
+      let processedCount = 0;
+
+      for (const photoUrl of formData.photos) {
+        console.log(
+          `이미지 분석 중: ${processedCount + 1}/${formData.photos.length}`
+        );
+
+        try {
+          const result = await imageAnalysisService.analyzeImage(photoUrl);
+          if (result && result.tags) {
+            result.tags.forEach((tag) => allTags.add(tag));
+          }
+
+          // 분석된 이미지로 표시
+          setAnalyzedImages((prev) => new Set([...prev, photoUrl]));
+        } catch (error) {
+          console.warn(`이미지 분석 실패 (${photoUrl}):`, error);
+        }
+
+        processedCount++;
+        setAnalysisProgress((processedCount / formData.photos.length) * 100);
+      }
+
+      setSuggestedTags(Array.from(allTags));
+      console.log("모든 이미지 분석 완료:", Array.from(allTags));
+    } catch (error) {
+      console.error("배치 분석 실패:", error);
+      setAiError("배치 분석에 실패했습니다.");
+    } finally {
+      setIsAnalyzing(false);
+      setAnalysisProgress(0);
+    }
+  };
+
+  // AI 분석 재시도 (가장 최근 이미지)
+  const retryImageAnalysis = async () => {
+    if (formData.photos.length > 0) {
+      const latestPhoto = formData.photos[formData.photos.length - 1];
+      await analyzeImage(latestPhoto, true);
+    }
+  };
+
+  // 특정 이미지 분석
+  const analyzeSpecificImage = async (imageUrl: string) => {
+    await analyzeImage(imageUrl, true);
   };
 
   // AI 감정 분석 함수
@@ -367,9 +436,11 @@ export default function TravelModal({
         photos: [...prev.photos, ...newPhotoUrls],
       }));
 
-      // 첫 번째 사진에 대해 AI 분석 실행
-      if (newPhotoUrls.length > 0) {
-        await analyzeImage(newPhotoUrls[0]);
+      // 자동 분석이 활성화된 경우 모든 새로 업로드된 이미지에 대해 AI 분석 실행
+      if (newPhotoUrls.length > 0 && autoAnalyze) {
+        for (const photoUrl of newPhotoUrls) {
+          await analyzeImage(photoUrl);
+        }
       }
     } catch (error) {
       console.error("이미지 업로드 실패:", error);
@@ -635,6 +706,22 @@ export default function TravelModal({
                           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center rounded-lg">
                             <Maximize2 className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                           </div>
+
+                          {/* AI 분석 버튼 */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 bg-purple-500/80 hover:bg-purple-500 text-white z-10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              analyzeSpecificImage(photo);
+                            }}
+                            disabled={isAnalyzing}
+                          >
+                            <Brain className="w-3 h-3" />
+                          </Button>
+
+                          {/* 삭제 버튼 */}
                           <Button
                             variant="ghost"
                             size="sm"
@@ -646,6 +733,13 @@ export default function TravelModal({
                           >
                             <X className="w-3 h-3" />
                           </Button>
+
+                          {/* 분석 완료 표시 */}
+                          {analyzedImages.has(photo) && (
+                            <div className="absolute bottom-2 right-2 bg-green-500 text-white rounded-full p-1">
+                              <CheckCircle className="w-3 h-3" />
+                            </div>
+                          )}
                         </motion.div>
                       ))}
                     </div>
@@ -694,49 +788,94 @@ export default function TravelModal({
                     />
                   </div>
 
-                  {/* AI 분석 상태 표시 */}
-                  {(isAnalyzing || aiError) && (
-                    <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
-                      <div className="flex items-center gap-2 mb-3">
+                  {/* AI 분석 설정 및 상태 */}
+                  <div className="space-y-4">
+                    {/* 자동 AI 분석 설정 */}
+                    <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-600">
+                      <div className="flex items-center gap-2">
                         <Brain className="w-4 h-4 text-purple-400" />
-                        <span className="text-sm font-medium text-purple-300">
-                          AI 분석 중
+                        <span className="text-sm font-medium text-slate-300">
+                          자동 AI 태그 생성
                         </span>
-                        {isAnalyzing && (
-                          <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
+                      </div>
+                      <Switch
+                        checked={autoAnalyze}
+                        onCheckedChange={setAutoAnalyze}
+                        className="data-[state=checked]:bg-purple-500"
+                      />
+                    </div>
+
+                    {/* AI 분석 제어 버튼들 */}
+                    {formData.photos.length > 0 && (
+                      <div className="flex gap-2 flex-wrap">
+                        <Button
+                          onClick={retryImageAnalysis}
+                          variant="outline"
+                          size="sm"
+                          disabled={isAnalyzing}
+                          className="border-purple-500 text-purple-300 hover:bg-purple-500/10"
+                        >
+                          <Brain className="w-4 h-4 mr-2" />
+                          최근 이미지 재분석
+                        </Button>
+                        <Button
+                          onClick={analyzeAllImages}
+                          variant="outline"
+                          size="sm"
+                          disabled={isAnalyzing}
+                          className="border-purple-500 text-purple-300 hover:bg-purple-500/10"
+                        >
+                          <Brain className="w-4 h-4 mr-2" />
+                          모든 이미지 분석
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* AI 분석 상태 표시 */}
+                    {(isAnalyzing || aiError) && (
+                      <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Brain className="w-4 h-4 text-purple-400" />
+                          <span className="text-sm font-medium text-purple-300">
+                            AI 분석 중
+                          </span>
+                          {isAnalyzing && (
+                            <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
+                          )}
+                        </div>
+
+                        {isAnalyzing && analysisProgress > 0 && (
+                          <div className="mb-3">
+                            <Progress
+                              value={analysisProgress}
+                              className="h-2 bg-purple-900/30"
+                            />
+                            <p className="text-xs text-purple-200 mt-1">
+                              이미지를 분석하고 있습니다...{" "}
+                              {Math.round(analysisProgress)}%
+                            </p>
+                          </div>
+                        )}
+
+                        {aiError && (
+                          <div className="flex items-center justify-between text-red-300">
+                            <div className="flex items-center gap-2">
+                              <XCircle className="w-4 h-4" />
+                              <span className="text-sm">{aiError}</span>
+                            </div>
+                            <Button
+                              onClick={clearAiError}
+                              size="sm"
+                              variant="ghost"
+                              className="text-red-300 hover:text-red-200 hover:bg-red-500/20"
+                            >
+                              <X className="w-3 h-3" />
+                            </Button>
+                          </div>
                         )}
                       </div>
-
-                      {isAnalyzing && analysisProgress > 0 && (
-                        <div className="mb-3">
-                          <Progress
-                            value={analysisProgress}
-                            className="h-2 bg-purple-900/30"
-                          />
-                          <p className="text-xs text-purple-200 mt-1">
-                            이미지를 분석하고 있습니다... {analysisProgress}%
-                          </p>
-                        </div>
-                      )}
-
-                      {aiError && (
-                        <div className="flex items-center justify-between text-red-300">
-                          <div className="flex items-center gap-2">
-                            <XCircle className="w-4 h-4" />
-                            <span className="text-sm">{aiError}</span>
-                          </div>
-                          <Button
-                            onClick={clearAiError}
-                            size="sm"
-                            variant="ghost"
-                            className="text-red-300 hover:text-red-200 hover:bg-red-500/20"
-                          >
-                            <X className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                    )}
+                  </div>
 
                   {/* AI 제안 감정 */}
                   {suggestedEmotion &&
