@@ -22,9 +22,8 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
 
-  const { register } = useAuth();
+  const { register, isLoading } = useAuth();
   const router = useRouter();
 
   const handleInputChange = (field: string, value: string) => {
@@ -63,17 +62,14 @@ export default function RegisterPage() {
     if (!validateForm()) return;
 
     setError("");
-    setIsLoading(true);
 
     try {
       await register(formData.email, formData.password, formData.username);
-      // 회원가입 성공 시 AuthContext에서 자동으로 리다이렉트됨
+      // 회원가입 성공 시 자동으로 리다이렉트됨
     } catch (error) {
       setError(
         error instanceof Error ? error.message : "회원가입에 실패했습니다."
       );
-    } finally {
-      setIsLoading(false);
     }
   };
 

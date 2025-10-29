@@ -17,25 +17,21 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
 
-  const { login } = useAuth();
+  const { login, isLoading } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setIsLoading(true);
 
     try {
       await login(email, password);
-      // 로그인 성공 시 AuthContext에서 자동으로 리다이렉트됨
+      // 로그인 성공 시 자동으로 리다이렉트됨
     } catch (error) {
       setError(
         error instanceof Error ? error.message : "로그인에 실패했습니다."
       );
-    } finally {
-      setIsLoading(false);
     }
   };
 

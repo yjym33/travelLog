@@ -26,6 +26,7 @@ import FilterPanel from "@/components/filter-panel";
 import ShareModal from "@/components/share-modal";
 import StoryCreator from "@/components/story-creator";
 import ShareImageGenerator from "@/components/share-image-generator";
+import GlobalLoading from "@/components/global-loading";
 import type { TravelLog } from "@/types/travel";
 import type { FilterState } from "@/types/filter";
 import type { TravelStory } from "@/types/story";
@@ -39,8 +40,16 @@ import {
   getFilterStats,
 } from "@/utils/filterUtils";
 import { useAuth } from "@/contexts/AuthContext";
-import { travelApi } from "@/lib/api";
 import AuthGuard from "@/components/auth-guard";
+import { useUIStore } from "@/stores/uiStore";
+import { useTravelStore } from "@/stores/travelStore";
+import {
+  useTravelLogs,
+  useCreateTravelLog,
+  useUpdateTravelLog,
+  useDeleteTravelLog,
+  useDeleteAllTravelLogs,
+} from "@/hooks/useTravelQueries";
 
 const emotions = {
   happy: { color: "#FFD700", emoji: "😊", label: "행복" },
@@ -53,49 +62,48 @@ const emotions = {
 
 export default function HomePage() {
   const { user, logout, token } = useAuth();
-  const [viewMode, setViewMode] = useState<
-    "map" | "gallery" | "timeline" | "stats" | "globe"
-  >("map");
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedPin, setSelectedPin] = useState<TravelLog | null>(null);
-  const [filters, setFilters] = useState<FilterState>(initialFilterState);
-  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
-  const [isStoryCreatorOpen, setIsStoryCreatorOpen] = useState(false);
+
+  // Zustand 스토어 - 클라이언트 상태
+  const {
+    viewMode,
+    setViewMode,
+    isModalOpen,
+    openModal,
+    closeModal,
+    isShareModalOpen,
+    openShareModal,
+    closeShareModal,
+    isStoryCreatorOpen,
+    openStoryCreator,
+    closeStoryCreator,
+    filters,
+    setFilters,
+    resetFilters,
+  } = useUIStore();
+
+  const { selectedLog, selectLog } = useTravelStore();
+
+  // React Query - 서버 상태
+  const { data: travelLogs = [], isLoading } = useTravelLogs(token);
+  const createMutation = useCreateTravelLog();
+  const updateMutation = useUpdateTravelLog();
+  const deleteMutation = useDeleteTravelLog();
+  const deleteAllMutation = useDeleteAllTravelLogs();
+
+  // 로컬 상태
   const [shareImageBlob, setShareImageBlob] = useState<Blob | null>(null);
   const [stories, setStories] = useState<TravelStory[]>([]);
-  const [travelLogs, setTravelLogs] = useState<TravelLog[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-
-  // 여행 기록 로드 함수
-  const loadTravelLogs = async () => {
-    if (!token) return;
-
-    setIsLoading(true);
-    try {
-      const logs = await travelApi.getList(token);
-      setTravelLogs(logs);
-    } catch (error) {
-      console.error("여행 기록 로드 실패:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // 컴포넌트 마운트 시 여행 기록 로드
-  React.useEffect(() => {
-    loadTravelLogs();
-  }, [token]);
 
   const handlePinClick = (pin: TravelLog) => {
-    setSelectedPin(pin);
-    setIsModalOpen(true);
+    selectLog(pin);
+    openModal();
   };
 
   // 새로운 여행 기록 추가 (빈 데이터로 모달 열기)
   const handleAddNewLog = () => {
-    setSelectedPin({
+    selectLog({
       id: "",
-      userId: "user1",
+      userId: user?.id || "",
       lat: 0,
       lng: 0,
       placeName: "",
@@ -107,41 +115,70 @@ export default function HomePage() {
       createdAt: new Date().toISOString().split("T")[0],
       updatedAt: new Date().toISOString().split("T")[0],
     });
-    setIsModalOpen(true);
+    openModal();
   };
 
   const handleSaveLog = async (log: TravelLog) => {
+    if (!token) return;
+
     try {
       if (log.id) {
-        // 수정된 경우 목록 새로고침
-        await loadTravelLogs();
+        // 수정
+        await updateMutation.mutateAsync({
+          token,
+          id: log.id,
+          data: {
+            placeName: log.placeName,
+            country: log.country,
+            emotion: log.emotion,
+            photos: log.photos,
+            diary: log.diary,
+            tags: log.tags,
+          },
+        });
       } else {
-        // 새로 생성된 경우 목록 새로고침
-        await loadTravelLogs();
+        // 생성
+        await createMutation.mutateAsync({
+          token,
+          data: {
+            lat: log.lat,
+            lng: log.lng,
+            placeName: log.placeName,
+            country: log.country,
+            emotion: log.emotion,
+            photos: log.photos,
+            diary: log.diary,
+            tags: log.tags,
+          },
+        });
       }
-      setIsModalOpen(false);
-      setSelectedPin(null);
+      closeModal();
+      selectLog(null);
     } catch (error) {
-      console.error("여행 기록 저장 후 새로고침 실패:", error);
+      console.error("여행 기록 저장 실패:", error);
+      alert("여행 기록 저장에 실패했습니다. 다시 시도해주세요.");
     }
   };
 
   const handleDeleteLog = async (id: string) => {
+    if (!token) return;
+
     try {
-      // 삭제 후 목록 새로고침
-      await loadTravelLogs();
-      setIsModalOpen(false);
-      setSelectedPin(null);
+      await deleteMutation.mutateAsync({ token, id });
+      closeModal();
+      selectLog(null);
     } catch (error) {
-      console.error("여행 기록 삭제 후 새로고침 실패:", error);
+      console.error("여행 기록 삭제 실패:", error);
+      alert("여행 기록 삭제에 실패했습니다. 다시 시도해주세요.");
     }
   };
 
   // 핀 제거 핸들러 (지도에서 직접 제거)
   const handleRemovePin = async (id: string) => {
+    if (!token) return;
+
     try {
-      await travelApi.delete(token!, id);
-      await loadTravelLogs();
+      await deleteMutation.mutateAsync({ token, id });
     } catch (error) {
       console.error("핀 제거 실패:", error);
     }
@@ -149,11 +186,10 @@ export default function HomePage() {
 
   // 모든 핀 제거 핸들러
   const handleRemoveAllPins = async () => {
+    if (!token) return;
+
     try {
-      for (const log of travelLogs) {
-        await travelApi.delete(token!, log.id);
-      }
-      await loadTravelLogs();
+      await deleteAllMutation.mutateAsync({ token, logs: travelLogs });
     } catch (error) {
       console.error("모든 핀 제거 실패:", error);
     }
@@ -161,7 +197,7 @@ export default function HomePage() {
 
   // 공유 기능
   const handleShare = () => {
-    setIsShareModalOpen(true);
+    openShareModal();
   };
 
   const handleGenerateImage = (platform: string) => {
@@ -174,7 +210,7 @@ export default function HomePage() {
       const url = URL.createObjectURL(shareImageBlob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `travelog-${selectedPin?.placeName || "share"}.png`;
+      a.download = `travelog-${selectedLog?.placeName || "share"}.png`;
       a.click();
       URL.revokeObjectURL(url);
     }
@@ -187,15 +223,15 @@ export default function HomePage() {
   };
 
   const handleExportPDF = () => {
-    if (selectedPin) {
-      const emotion = emotions[selectedPin.emotion as keyof typeof emotions];
-      exportTravelToPDF(selectedPin, emotion);
+    if (selectedLog) {
+      const emotion = emotions[selectedLog.emotion as keyof typeof emotions];
+      exportTravelToPDF(selectedLog, emotion);
     }
   };
 
   const handleCreateStory = () => {
-    setIsShareModalOpen(false);
-    setIsStoryCreatorOpen(true);
+    closeShareModal();
+    openStoryCreator();
   };
 
   const handleSaveStory = (
@@ -208,6 +244,7 @@ export default function HomePage() {
       updatedAt: new Date().toISOString(),
     };
     setStories((prev) => [...prev, newStory]);
+    closeStoryCreator();
     console.log("Story created:", newStory);
   };
 
@@ -370,7 +407,7 @@ export default function HomePage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setFilters(initialFilterState)}
+                        onClick={resetFilters}
                         className="text-slate-300 hover:text-white"
                       >
                         필터 초기화
@@ -521,10 +558,10 @@ export default function HomePage() {
         <TravelModal
           isOpen={isModalOpen}
           onClose={() => {
-            setIsModalOpen(false);
-            setSelectedPin(null);
+            closeModal();
+            selectLog(null);
           }}
-          travelLog={selectedPin}
+          travelLog={selectedLog}
           emotions={emotions}
           onSave={handleSaveLog}
           onDelete={handleDeleteLog}
@@ -534,8 +571,8 @@ export default function HomePage() {
         {/* Share Modal */}
         <ShareModal
           isOpen={isShareModalOpen}
-          onClose={() => setIsShareModalOpen(false)}
-          travelLog={selectedPin}
+          onClose={closeShareModal}
+          travelLog={selectedLog}
           onGenerateImage={handleGenerateImage}
           onExportPDF={handleExportPDF}
           onCreateStory={handleCreateStory}
@@ -546,21 +583,24 @@ export default function HomePage() {
         {/* Story Creator */}
         <StoryCreator
           isOpen={isStoryCreatorOpen}
-          onClose={() => setIsStoryCreatorOpen(false)}
+          onClose={closeStoryCreator}
           travelLogs={travelLogs}
           onCreateStory={handleSaveStory}
         />
 
         {/* Share Image Generator (hidden) - 공유 모달이 열렸을 때만 렌더링 */}
-        {selectedPin && isShareModalOpen && shareImageBlob === null && (
+        {selectedLog && isShareModalOpen && shareImageBlob === null && (
           <ShareImageGenerator
-            travelLog={selectedPin}
-            emotion={emotions[selectedPin.emotion as keyof typeof emotions]}
+            travelLog={selectedLog}
+            emotion={emotions[selectedLog.emotion as keyof typeof emotions]}
             template="modern"
             platform="instagram"
             onGenerated={handleImageGenerated}
           />
         )}
+
+        {/* 전역 로딩 인디케이터 */}
+        <GlobalLoading />
       </div>
     </AuthGuard>
   );
