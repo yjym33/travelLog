@@ -14,6 +14,9 @@ import type {
 } from "@/types/travel";
 import { mockLogin, mockRegister } from "./mockApi";
 
+// Re-export types for external use
+export type { CreateTravelRequest, UpdateTravelRequest };
+
 // AI 분석 관련 타입 정의
 export interface AnalyzeImageRequest {
   imageUrl: string;

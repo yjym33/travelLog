@@ -79,4 +79,3 @@ export const useLogout = () => {
     router.push("/auth/login");
   };
 };
-

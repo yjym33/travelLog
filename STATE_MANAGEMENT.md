@@ -5,6 +5,7 @@
 ## 📋 아키텍처 개요
 
 ### 상태 관리 전략
+
 - **클라이언트 상태 (Zustand)**: UI 상태, 임시 데이터, 사용자 선택 등
 - **서버 상태 (React Query)**: API 데이터, 캐싱, 비동기 상태 관리
 
@@ -26,6 +27,7 @@ travelog-frontend/
 ## 📦 Zustand 스토어
 
 ### 1. `authStore.ts` - 인증 상태
+
 **목적**: 사용자 인증 정보를 관리하고 localStorage에 persist
 
 ```typescript
@@ -43,23 +45,26 @@ interface AuthActions {
 ```
 
 **특징**:
+
 - `persist` 미들웨어로 localStorage에 자동 저장
 - 앱 재시작 시 자동으로 인증 상태 복원
 - 로그인/로그아웃 시 자동으로 persist
 
 **사용 예시**:
+
 ```typescript
 import { useAuthStore } from "@/stores/authStore";
 
 function MyComponent() {
   const { user, token, isAuthenticated } = useAuthStore();
   const { setAuth, clearAuth } = useAuthStore();
-  
+
   // 상태 사용...
 }
 ```
 
 ### 2. `uiStore.ts` - UI 상태
+
 **목적**: 모달, 필터, 뷰 모드 등 UI 관련 상태 관리
 
 ```typescript
@@ -76,11 +81,13 @@ interface UIState {
 ```
 
 **특징**:
+
 - 모든 모달 상태 중앙 관리
 - 필터 상태 관리 (resetFilters로 초기화 가능)
 - 전역 로딩 상태 관리
 
 **사용 예시**:
+
 ```typescript
 import { useUIStore } from "@/stores/uiStore";
 
@@ -95,12 +102,13 @@ function MyComponent() {
     setFilters,
     resetFilters,
   } = useUIStore();
-  
+
   // UI 상태 사용...
 }
 ```
 
 ### 3. `travelStore.ts` - 여행 기록 클라이언트 상태
+
 **목적**: 선택된 여행 기록 등 클라이언트 전용 상태
 
 ```typescript
@@ -114,6 +122,7 @@ interface TravelActions {
 ```
 
 **특징**:
+
 - 서버 데이터는 React Query가 관리
 - 클라이언트 전용 상태만 Zustand로 관리
 
@@ -122,6 +131,7 @@ interface TravelActions {
 ### 1. `useTravelQueries.ts` - 여행 기록 CRUD
 
 #### 쿼리 (Queries)
+
 **`useTravelLogs(token)`**: 여행 기록 목록 조회
 
 ```typescript
@@ -129,11 +139,13 @@ const { data: travelLogs = [], isLoading, error } = useTravelLogs(token);
 ```
 
 **특징**:
+
 - 5분간 캐시 유지 (staleTime)
 - 30분간 가비지 컬렉션 방지 (gcTime)
 - token이 있을 때만 쿼리 실행 (enabled)
 
 #### 뮤테이션 (Mutations)
+
 **`useCreateTravelLog()`**: 여행 기록 생성
 
 ```typescript
@@ -143,7 +155,7 @@ await createMutation.mutateAsync({
   token,
   data: {
     lat: 37.5665,
-    lng: 126.9780,
+    lng: 126.978,
     placeName: "서울",
     country: "대한민국",
     emotion: "happy",
@@ -193,6 +205,7 @@ await deleteAllMutation.mutateAsync({
 ```
 
 **특징**:
+
 - 뮤테이션 성공 시 자동으로 쿼리 무효화 (invalidateQueries)
 - 낙관적 업데이트(Optimistic Updates) 지원 가능
 - 에러 핸들링 자동화
@@ -231,6 +244,7 @@ logout(); // 함수로 직접 호출
 ```
 
 **특징**:
+
 - 성공 시 Zustand authStore에 자동 저장
 - 성공 시 자동으로 페이지 리다이렉트
 - 에러 핸들링 자동화
@@ -238,6 +252,7 @@ logout(); // 함수로 직접 호출
 ## 🔌 Provider 설정
 
 ### `QueryProvider.tsx`
+
 React Query Provider를 설정하고 DevTools를 제공합니다.
 
 ```typescript
@@ -256,6 +271,7 @@ export default function RootLayout({ children }) {
 ```
 
 **설정**:
+
 - 기본 staleTime: 1분
 - 기본 gcTime: 5분
 - 윈도우 포커스 시 자동 새로고침 비활성화
@@ -265,12 +281,13 @@ export default function RootLayout({ children }) {
 ## 🔧 훅 사용 예시
 
 ### 인증 관련
+
 ```typescript
 import { useAuth } from "@/contexts/AuthContext";
 
 function MyComponent() {
   const { user, token, isAuthenticated, isLoading, login, logout } = useAuth();
-  
+
   const handleLogin = async () => {
     try {
       await login("user@example.com", "password");
@@ -279,7 +296,7 @@ function MyComponent() {
       console.error("로그인 실패:", error);
     }
   };
-  
+
   return (
     <div>
       {isAuthenticated ? (
@@ -295,42 +312,52 @@ function MyComponent() {
 ```
 
 ### 여행 기록 CRUD
+
 ```typescript
-import { useTravelLogs, useCreateTravelLog, useUpdateTravelLog, useDeleteTravelLog } from "@/hooks/useTravelQueries";
+import {
+  useTravelLogs,
+  useCreateTravelLog,
+  useUpdateTravelLog,
+  useDeleteTravelLog,
+} from "@/hooks/useTravelQueries";
 import { useAuthStore } from "@/stores/authStore";
 
 function TravelList() {
   const { token } = useAuthStore();
-  
+
   // 쿼리
   const { data: travelLogs = [], isLoading } = useTravelLogs(token);
-  
+
   // 뮤테이션
   const createMutation = useCreateTravelLog();
   const updateMutation = useUpdateTravelLog();
   const deleteMutation = useDeleteTravelLog();
-  
+
   const handleCreate = async () => {
     await createMutation.mutateAsync({
       token,
-      data: { /* ... */ },
+      data: {
+        /* ... */
+      },
     });
   };
-  
+
   const handleUpdate = async (id: string) => {
     await updateMutation.mutateAsync({
       token,
       id,
-      data: { /* ... */ },
+      data: {
+        /* ... */
+      },
     });
   };
-  
+
   const handleDelete = async (id: string) => {
     await deleteMutation.mutateAsync({ token, id });
   };
-  
+
   if (isLoading) return <div>로딩 중...</div>;
-  
+
   return (
     <ul>
       {travelLogs.map((log) => (
@@ -347,6 +374,7 @@ function TravelList() {
 ```
 
 ### UI 상태 관리
+
 ```typescript
 import { useUIStore } from "@/stores/uiStore";
 
@@ -362,7 +390,7 @@ function MyComponent() {
     resetFilters,
     setGlobalLoading,
   } = useUIStore();
-  
+
   const handleSave = async () => {
     setGlobalLoading(true, "저장 중...");
     try {
@@ -371,7 +399,7 @@ function MyComponent() {
       setGlobalLoading(false);
     }
   };
-  
+
   return (
     <div>
       <button onClick={() => setViewMode("map")}>지도 뷰</button>
@@ -385,10 +413,12 @@ function MyComponent() {
 ## 🎯 베스트 프랙티스
 
 ### 1. 클라이언트 vs 서버 상태 구분
+
 - **Zustand (클라이언트 상태)**: UI 상태, 사용자 선택, 임시 데이터
 - **React Query (서버 상태)**: API 데이터, 캐싱, 비동기 작업
 
 ### 2. Query Key 관리
+
 ```typescript
 // 일관된 Query Key 구조 사용
 export const travelKeys = {
@@ -401,6 +431,7 @@ export const travelKeys = {
 ```
 
 ### 3. 에러 핸들링
+
 ```typescript
 const createMutation = useCreateTravelLog();
 
@@ -413,6 +444,7 @@ try {
 ```
 
 ### 4. 로딩 상태 관리
+
 ```typescript
 // 전역 로딩
 const { setGlobalLoading } = useUIStore();
@@ -430,6 +462,7 @@ if (isLoading) return <div>로딩 중...</div>;
 ```
 
 ### 5. 캐싱 전략
+
 ```typescript
 // 데이터 변경 후 자동 새로고침
 const updateMutation = useUpdateTravelLog();
@@ -450,18 +483,24 @@ updateMutation.mutate(
 ## 🐛 디버깅
 
 ### React Query DevTools
+
 개발 환경에서 자동으로 활성화됩니다:
+
 - 브라우저 하단에 React Query 아이콘 표시
 - 쿼리 상태, 캐시, 네트워크 요청 확인 가능
 
 ### Zustand DevTools
+
 브라우저 개발자 도구에서 확인:
+
 ```typescript
 // Redux DevTools Extension 사용 가능
 const useAuthStore = create<AuthStore>()(
   devtools(
     persist(
-      (set) => ({ /* ... */ }),
+      (set) => ({
+        /* ... */
+      }),
       { name: "auth-storage" }
     )
   )
@@ -473,4 +512,3 @@ const useAuthStore = create<AuthStore>()(
 - [Zustand 공식 문서](https://docs.pmnd.rs/zustand)
 - [React Query 공식 문서](https://tanstack.com/query/latest)
 - [상태 관리 비교](https://github.com/pmndrs/zustand#comparison)
-

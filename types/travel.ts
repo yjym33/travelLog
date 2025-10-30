@@ -78,11 +78,15 @@ export type EmotionType =
   | "grateful"
   | "inspired";
 
+// 감정 정보 객체 타입
+export interface Emotion {
+  color: string;
+  emoji: string;
+  label: string;
+}
+
 // 감정 정보
-export const emotions: Record<
-  EmotionType,
-  { color: string; emoji: string; label: string }
-> = {
+export const emotions: Record<EmotionType, Emotion> = {
   happy: { color: "#FFD700", emoji: "😊", label: "행복" },
   peaceful: { color: "#87CEEB", emoji: "😌", label: "평온" },
   excited: { color: "#FF6B6B", emoji: "🤩", label: "신남" },

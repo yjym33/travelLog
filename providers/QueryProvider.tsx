@@ -38,4 +38,3 @@ export default function QueryProvider({ children }: QueryProviderProps) {
     </QueryClientProvider>
   );
 }
-
