@@ -1,91 +1,206 @@
 import { create } from "zustand";
-import type { FilterState } from "@/types/filter";
-import { initialFilterState } from "@/types/filter";
+import { devtools } from "zustand/middleware";
 
-// UI 상태 타입 정의
+type ViewMode = "map" | "gallery" | "timeline" | "stats" | "globe" | "social";
+type ModalType = "travel" | "share" | "storyCreator" | null;
+
+interface FilterState {
+  emotions: string[];
+  dateRange: { start: string | null; end: string | null };
+  tags: string[];
+  countries: string[];
+  searchQuery: string;
+}
+
+const initialFilterState: FilterState = {
+  emotions: [],
+  dateRange: { start: null, end: null },
+  tags: [],
+  countries: [],
+  searchQuery: "",
+};
+
 interface UIState {
-  // 뷰 모드
-  viewMode: "map" | "gallery" | "timeline" | "stats" | "globe";
+  // View
+  viewMode: ViewMode;
 
-  // 모달 상태
+  // Modals
   isModalOpen: boolean;
-  isShareModalOpen: boolean;
-  isStoryCreatorOpen: boolean;
+  activeModal: ModalType;
 
-  // 필터 패널
+  // Sidebar
+  isSidebarOpen: boolean;
+  sidebarWidth: number;
+
+  // Filter Panel
   isFilterPanelOpen: boolean;
-
-  // 필터 상태
   filters: FilterState;
 
-  // 로딩 상태
+  // Global Loading
   isGlobalLoading: boolean;
   loadingMessage: string;
+
+  // Global Error
+  globalError: string | null;
+
+  // Theme
+  theme: "light" | "dark" | "system";
+
+  // Animations
+  animationsEnabled: boolean;
+
+  // Slideshow
+  selectedPhotoIndex: number;
+  isSlideshowOpen: boolean;
+
+  // Story Playback
+  isStoryPlaying: boolean;
+  storyPlaybackSpeed: number;
 }
 
-// UI 액션 타입 정의
 interface UIActions {
-  // 뷰 모드 변경
-  setViewMode: (mode: UIState["viewMode"]) => void;
+  // View Actions
+  setViewMode: (mode: ViewMode) => void;
 
-  // 모달 제어
-  openModal: () => void;
+  // Modal Actions
+  openModal: (type?: ModalType) => void;
   closeModal: () => void;
-  openShareModal: () => void;
-  closeShareModal: () => void;
-  openStoryCreator: () => void;
-  closeStoryCreator: () => void;
+  toggleModal: (type?: ModalType) => void;
 
-  // 필터 패널 제어
+  // Sidebar Actions
+  toggleSidebar: () => void;
+  setSidebarOpen: (open: boolean) => void;
+  setSidebarWidth: (width: number) => void;
+
+  // Filter Panel Actions
   toggleFilterPanel: () => void;
   setFilterPanelOpen: (open: boolean) => void;
-
-  // 필터 상태 관리
-  setFilters: (filters: FilterState) => void;
+  setFilters: (filters: Partial<FilterState>) => void;
   resetFilters: () => void;
 
-  // 전역 로딩 상태
-  setGlobalLoading: (loading: boolean, message?: string) => void;
+  // Global Loading Actions
+  setGlobalLoading: (isLoading: boolean, message?: string) => void;
   clearLoading: () => void;
+
+  // Global Error Actions
+  setGlobalError: (error: string | null) => void;
+  clearGlobalError: () => void;
+
+  // Theme Actions
+  setTheme: (theme: "light" | "dark" | "system") => void;
+  toggleTheme: () => void;
+
+  // Animation Actions
+  setAnimationsEnabled: (enabled: boolean) => void;
+  toggleAnimations: () => void;
+
+  // Slideshow Actions
+  setSelectedPhotoIndex: (index: number) => void;
+  setSlideshowOpen: (open: boolean) => void;
+
+  // Story Playback Actions
+  setStoryPlaying: (playing: boolean) => void;
+  setStoryPlaybackSpeed: (speed: number) => void;
+
+  // Reset All UI
+  resetUI: () => void;
 }
 
-// 전체 UI 스토어 타입
 type UIStore = UIState & UIActions;
 
-// UI 스토어 생성
-export const useUIStore = create<UIStore>()((set) => ({
-  // 초기 상태
+const initialState: UIState = {
   viewMode: "map",
   isModalOpen: false,
-  isShareModalOpen: false,
-  isStoryCreatorOpen: false,
+  activeModal: null,
+  isSidebarOpen: true,
+  sidebarWidth: 300,
   isFilterPanelOpen: false,
   filters: initialFilterState,
   isGlobalLoading: false,
   loadingMessage: "",
+  globalError: null,
+  theme: "system",
+  animationsEnabled: true,
+  selectedPhotoIndex: 0,
+  isSlideshowOpen: false,
+  isStoryPlaying: false,
+  storyPlaybackSpeed: 1,
+};
 
-  // 뷰 모드 변경
-  setViewMode: (mode) => set({ viewMode: mode }),
+export const useUIStore = create<UIStore>()(
+  devtools((set, get) => ({
+    ...initialState,
 
-  // 모달 제어
-  openModal: () => set({ isModalOpen: true }),
-  closeModal: () => set({ isModalOpen: false }),
-  openShareModal: () => set({ isShareModalOpen: true }),
-  closeShareModal: () => set({ isShareModalOpen: false }),
-  openStoryCreator: () => set({ isStoryCreatorOpen: true }),
-  closeStoryCreator: () => set({ isStoryCreatorOpen: false }),
+    // View Actions
+    setViewMode: (mode) => set({ viewMode: mode }),
 
-  // 필터 패널 제어
-  toggleFilterPanel: () =>
-    set((state) => ({ isFilterPanelOpen: !state.isFilterPanelOpen })),
-  setFilterPanelOpen: (open) => set({ isFilterPanelOpen: open }),
+    // Modal Actions
+    openModal: (type = "travel") =>
+      set({ isModalOpen: true, activeModal: type }),
+    closeModal: () => set({ isModalOpen: false, activeModal: null }),
+    toggleModal: (type = "travel") =>
+      set((state) => ({
+        isModalOpen: !state.isModalOpen,
+        activeModal: state.isModalOpen ? null : type,
+      })),
 
-  // 필터 상태 관리
-  setFilters: (filters) => set({ filters }),
-  resetFilters: () => set({ filters: initialFilterState }),
+    // Sidebar Actions
+    toggleSidebar: () =>
+      set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
+    setSidebarOpen: (open) => set({ isSidebarOpen: open }),
+    setSidebarWidth: (width) => set({ sidebarWidth: width }),
 
-  // 전역 로딩 상태
-  setGlobalLoading: (loading, message = "") =>
-    set({ isGlobalLoading: loading, loadingMessage: message }),
-  clearLoading: () => set({ isGlobalLoading: false, loadingMessage: "" }),
-}));
+    // Filter Panel Actions
+    toggleFilterPanel: () =>
+      set((state) => ({ isFilterPanelOpen: !state.isFilterPanelOpen })),
+    setFilterPanelOpen: (open) => set({ isFilterPanelOpen: open }),
+    setFilters: (newFilters) =>
+      set((state) => ({
+        filters: { ...state.filters, ...newFilters },
+      })),
+    resetFilters: () => set({ filters: initialFilterState }),
+
+    // Global Loading Actions
+    setGlobalLoading: (isLoading, message = "") =>
+      set({ isGlobalLoading: isLoading, loadingMessage: message }),
+    clearLoading: () => set({ isGlobalLoading: false, loadingMessage: "" }),
+
+    // Global Error Actions
+    setGlobalError: (error) => set({ globalError: error }),
+    clearGlobalError: () => set({ globalError: null }),
+
+    // Theme Actions
+    setTheme: (theme) => set({ theme }),
+    toggleTheme: () =>
+      set((state) => ({ theme: state.theme === "dark" ? "light" : "dark" })),
+
+    // Animation Actions
+    setAnimationsEnabled: (enabled) => set({ animationsEnabled: enabled }),
+    toggleAnimations: () =>
+      set((state) => ({ animationsEnabled: !state.animationsEnabled })),
+
+    // Slideshow Actions
+    setSelectedPhotoIndex: (index) => set({ selectedPhotoIndex: index }),
+    setSlideshowOpen: (open) => set({ isSlideshowOpen: open }),
+
+    // Story Playback Actions
+    setStoryPlaying: (playing) => set({ isStoryPlaying: playing }),
+    setStoryPlaybackSpeed: (speed) =>
+      set({ storyPlaybackSpeed: Math.max(0.5, Math.min(3, speed)) }),
+
+    // Reset All UI
+    resetUI: () => set(initialState),
+  }))
+);
+
+// 편의를 위한 커스텀 훅들
+export const useCurrentView = () => useUIStore();
+export const useModal = () => useUIStore();
+export const useSidebar = () => useUIStore();
+export const useFilterPanel = () => useUIStore();
+export const useGlobalLoading = () => useUIStore();
+export const useGlobalError = () => useUIStore();
+export const useTheme = () => useUIStore();
+export const useAnimations = () => useUIStore();
+export const useSlideshow = () => useUIStore();
+export const useStoryPlayback = () => useUIStore();

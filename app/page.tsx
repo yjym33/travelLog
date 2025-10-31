@@ -50,6 +50,7 @@ import {
   useDeleteTravelLog,
   useDeleteAllTravelLogs,
 } from "@/hooks/useTravelQueries";
+import SocialHub from "@/components/social/SocialHub";
 
 const emotions = {
   happy: { color: "#FFD700", emoji: "😊", label: "행복" },
@@ -70,12 +71,6 @@ export default function HomePage() {
     isModalOpen,
     openModal,
     closeModal,
-    isShareModalOpen,
-    openShareModal,
-    closeShareModal,
-    isStoryCreatorOpen,
-    openStoryCreator,
-    closeStoryCreator,
     filters,
     setFilters,
     resetFilters,
@@ -93,6 +88,8 @@ export default function HomePage() {
   // 로컬 상태
   const [shareImageBlob, setShareImageBlob] = useState<Blob | null>(null);
   const [stories, setStories] = useState<TravelStory[]>([]);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isStoryCreatorOpen, setIsStoryCreatorOpen] = useState(false);
 
   const handlePinClick = (pin: TravelLog) => {
     selectLog(pin);
@@ -197,7 +194,7 @@ export default function HomePage() {
 
   // 공유 기능
   const handleShare = () => {
-    openShareModal();
+    setIsShareModalOpen(true);
   };
 
   const handleGenerateImage = (platform: string) => {
@@ -230,8 +227,8 @@ export default function HomePage() {
   };
 
   const handleCreateStory = () => {
-    closeShareModal();
-    openStoryCreator();
+    setIsShareModalOpen(false);
+    setIsStoryCreatorOpen(true);
   };
 
   const handleSaveStory = (
@@ -244,7 +241,7 @@ export default function HomePage() {
       updatedAt: new Date().toISOString(),
     };
     setStories((prev) => [...prev, newStory]);
-    closeStoryCreator();
+    setIsStoryCreatorOpen(false);
     console.log("Story created:", newStory);
   };
 
@@ -353,6 +350,15 @@ export default function HomePage() {
                 >
                   <Globe2 className="w-4 h-4 mr-2" />
                   3D 지구본
+                </Button>
+                <Button
+                  variant={viewMode === "social" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setViewMode("social")}
+                  className="text-slate-300 hover:text-white"
+                >
+                  <User className="w-4 h-4 mr-2" />
+                  여행 공유
                 </Button>
 
                 <div className="h-6 w-px bg-slate-600 mx-2" />
@@ -499,6 +505,18 @@ export default function HomePage() {
                     />
                   </motion.div>
                 )}
+
+                {viewMode === "social" && (
+                  <motion.div
+                    key="social"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <SocialHub />
+                  </motion.div>
+                )}
               </AnimatePresence>
 
               {/* Stats Card */}
@@ -571,7 +589,7 @@ export default function HomePage() {
         {/* Share Modal */}
         <ShareModal
           isOpen={isShareModalOpen}
-          onClose={closeShareModal}
+          onClose={() => setIsShareModalOpen(false)}
           travelLog={selectedLog}
           onGenerateImage={handleGenerateImage}
           onExportPDF={handleExportPDF}
@@ -583,7 +601,7 @@ export default function HomePage() {
         {/* Story Creator */}
         <StoryCreator
           isOpen={isStoryCreatorOpen}
-          onClose={closeStoryCreator}
+          onClose={() => setIsStoryCreatorOpen(false)}
           travelLogs={travelLogs}
           onCreateStory={handleSaveStory}
         />
