@@ -4,6 +4,7 @@ export interface User {
   email: string;
   nickname: string;
   profileImage?: string;
+  friendsCount?: number;
 }
 
 export interface LoginRequest {

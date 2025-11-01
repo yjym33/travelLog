@@ -7,6 +7,7 @@ interface AuthState {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
+  isHydrated: boolean;
 }
 
 // 인증 액션 타입 정의
@@ -14,6 +15,7 @@ interface AuthActions {
   setAuth: (user: User, token: string) => void;
   clearAuth: () => void;
   initializeAuth: () => void;
+  setHydrated: (isHydrated: boolean) => void;
 }
 
 // 전체 인증 스토어 타입
@@ -27,6 +29,7 @@ export const useAuthStore = create<AuthStore>()(
       user: null,
       token: null,
       isAuthenticated: false,
+      isHydrated: false,
 
       // 인증 정보 설정
       setAuth: (user: User, token: string) => {
@@ -50,6 +53,10 @@ export const useAuthStore = create<AuthStore>()(
       initializeAuth: () => {
         // persist 미들웨어가 자동으로 처리
       },
+
+      setHydrated: (isHydrated: boolean) => {
+        set({ isHydrated });
+      },
     }),
     {
       name: "travelog-auth-storage", // localStorage key
@@ -58,6 +65,14 @@ export const useAuthStore = create<AuthStore>()(
         token: state.token,
         isAuthenticated: state.isAuthenticated,
       }),
+      onRehydrateStorage: () => (state, error) => {
+        if (error) {
+          console.error("인증 상태 복원 중 오류 발생:", error);
+          state?.setHydrated(true);
+          return;
+        }
+        state?.setHydrated(true);
+      },
     }
   )
 );

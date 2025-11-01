@@ -1,6 +1,14 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+} from "@tanstack/react-query";
 import { likeApi } from "@/lib/socialApi";
 import { useAuthStore } from "@/stores/authStore";
+import type { GetFeedResponse } from "@/types/social";
+
+type TravelFeedCache = InfiniteData<GetFeedResponse>;
 
 // 여행 기록 좋아요 토글 (Optimistic Update)
 export const useToggleTravelLogLike = () => {
@@ -10,7 +18,8 @@ export const useToggleTravelLogLike = () => {
   return useMutation<
     { liked: boolean; message: string },
     Error,
-    { travelLogId: string; currentLiked: boolean }
+    { travelLogId: string; currentLiked: boolean },
+    { previousFeed: TravelFeedCache | undefined }
   >({
     mutationFn: async ({ travelLogId }) => {
       if (!token) throw new Error("인증 토큰이 없습니다.");
@@ -22,17 +31,17 @@ export const useToggleTravelLogLike = () => {
       await queryClient.cancelQueries({ queryKey: ["travel-feed"] });
 
       // 이전 데이터 백업
-      const previousFeed = queryClient.getQueryData(["travel-feed"]);
+      const previousFeed = queryClient.getQueryData<TravelFeedCache>(["travel-feed"]);
 
       // Optimistic update
-      queryClient.setQueryData(["travel-feed"], (old: any) => {
+      queryClient.setQueryData<TravelFeedCache>(["travel-feed"], (old) => {
         if (!old) return old;
 
         return {
           ...old,
-          pages: old.pages.map((page: any) => ({
+          pages: old.pages.map((page) => ({
             ...page,
-            data: page.data.map((log: any) =>
+            data: page.data.map((log) =>
               log.id === travelLogId
                 ? {
                     ...log,
