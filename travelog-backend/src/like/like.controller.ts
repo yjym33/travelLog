@@ -11,7 +11,7 @@ import { LikeService } from './like.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetLikesDto } from './dto/get-likes.dto';
 
-@Controller('api/likes')
+@Controller('likes')
 @UseGuards(JwtAuthGuard)
 export class LikeController {
   constructor(private readonly likeService: LikeService) {}

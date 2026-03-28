@@ -41,6 +41,32 @@ export interface AnalyzeEmotionResponse {
   message?: string;
 }
 
+export interface GenerateDescriptionResponse {
+  success: boolean;
+  description: string;
+  message?: string;
+}
+
+export interface GenerateStoryResponse {
+  success: boolean;
+  story: string;
+  message?: string;
+}
+
+export interface Recommendation {
+  name: string;
+  lat: number;
+  lng: number;
+  reason: string;
+  tags: string[];
+}
+
+export interface RecommendationResponse {
+  success: boolean;
+  recommendations: Recommendation[];
+  message?: string;
+}
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 class ApiClient {
@@ -276,17 +302,17 @@ export const uploadApi = {
     token: string,
     file: File
   ): Promise<{ success: boolean; url: string }> => {
+    if (!token) {
+      console.error("Upload failed: No auth token provided");
+      throw new Error("로그인 상태를 확인해주세요.");
+    }
+
     const formData = new FormData();
     formData.append("file", file);
 
-    console.log("Uploading file:", {
-      name: file.name,
-      size: file.size,
-      type: file.type,
-    });
+    console.log(`[API] Uploading file: ${file.name} (${file.size} bytes)`);
 
     try {
-      // 직접 fetch 사용하여 CORS 문제 우회
       const response = await fetch(`${API_BASE_URL}/api/upload/single`, {
         method: "POST",
         headers: {
@@ -297,28 +323,24 @@ export const uploadApi = {
         credentials: "include",
       });
 
-      console.log("Upload response:", {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-      });
+      console.log(`[API] Upload response status: ${response.status} ${response.statusText}`);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Upload failed:", errorText);
+        console.error(`[API] Upload failed details:`, errorText);
         throw new Error(
-          `Upload failed: ${response.status} ${response.statusText}`
+          `업로드 실패: 서버에서 ${response.status} 오류가 발생했습니다.`
         );
       }
 
       const result = await response.json();
-      console.log("Upload successful:", result);
+      console.log("[API] Upload successful:", result);
       return result;
     } catch (error) {
-      console.error("Upload failed:", error);
+      console.error("[API] Upload exception:", error);
       if (error instanceof TypeError && error.message === "Failed to fetch") {
         throw new Error(
-          "서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인해주세요."
+          "서버 연결 실패: 백엔드 서버가 실행 중인지, URL(http://localhost:8080)이 올바른지 확인해주세요."
         );
       }
       throw error;
@@ -363,7 +385,7 @@ export const aiApi = {
       }
     ),
 
-  // 일기 텍스트 감정 분석
+  // 일기 텍스트 감정 분석 (DEPRECATED)
   analyzeEmotion: (
     token: string,
     text: string
@@ -376,4 +398,47 @@ export const aiApi = {
         body: JSON.stringify({ text }),
       }
     ),
+
+  // 사진을 통한 AI 설명 생성
+  generateDescription: (
+    token: string,
+    imageUrls: string[]
+  ): Promise<GenerateDescriptionResponse> =>
+    apiClient.authenticatedRequest<GenerateDescriptionResponse>(
+      "/api/ai/generate-description",
+      token,
+      {
+        method: "POST",
+        body: JSON.stringify({ imageUrls }),
+      }
+    ),
+
+  // 사진과 장소를 통한 AI 일기 생성
+  generateDiary: (
+    token: string,
+    imageUrls: string[],
+    placeName: string
+  ): Promise<GenerateStoryResponse> =>
+    apiClient.authenticatedRequest<GenerateStoryResponse>(
+      "/api/ai/generate-diary",
+      token,
+      {
+        method: "POST",
+        body: JSON.stringify({ imageUrls, placeName }),
+      }
+    ),
+
+  // 지도 기반 여행지 추천 받기
+  getRecommendations: (
+    token: string,
+    lat: number,
+    lng: number,
+    isGlobal: boolean = false
+  ): Promise<RecommendationResponse> => {
+    const query = isGlobal ? "isGlobal=true" : `lat=${lat}&lng=${lng}`;
+    return apiClient.authenticatedRequest<RecommendationResponse>(
+      `/api/ai/recommendations?${query}`,
+      token
+    );
+  },
 };

@@ -1,7 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { MapPin, Calendar } from "lucide-react"
+import { MapPin, Calendar, Brain } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import type { TravelLog, Emotion } from "@/types/travel"
@@ -69,8 +69,6 @@ export default function TimelineView({ travelLogs, emotions, onLogClick }: Timel
               {/* Logs for this month */}
               <div className="ml-16 space-y-4">
                 {logs.map((log, logIndex) => {
-                  const emotion = emotions[log.emotion]
-
                   return (
                     <motion.div
                       key={log.id}
@@ -107,15 +105,22 @@ export default function TimelineView({ travelLogs, emotions, onLogClick }: Timel
                                     {log.createdAt}
                                   </div>
                                 </div>
-                                <div
-                                  className="w-6 h-6 rounded-full flex items-center justify-center text-xs"
-                                  style={{ backgroundColor: emotion.color }}
-                                >
-                                  {emotion.emoji}
-                                </div>
+                                {/* Photo Story Badge (Subtle) */}
+                                {log.aiDescription && (
+                                  <div className="bg-purple-500/10 rounded-full p-1 text-purple-400">
+                                    <Brain className="w-4 h-4" />
+                                  </div>
+                                )}
                               </div>
 
-                              <p className="text-slate-300 text-sm mb-2 line-clamp-2">{log.diary}</p>
+                              <p className="text-slate-300 text-sm mb-1 line-clamp-2">{log.diary}</p>
+
+                              {/* AI Photo Story */}
+                              {log.aiDescription && (
+                                <p className="text-[11px] text-purple-400 italic mb-2 flex items-center gap-1">
+                                  <span>"{log.aiDescription}"</span>
+                                </p>
+                              )}
 
                               {/* Tags */}
                               {log.tags.length > 0 && (

@@ -12,10 +12,16 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
+  Sparkles,
+  Star,
+  Loader2,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { TravelLog, Emotion } from "@/types/travel";
+import { aiApi, type Recommendation } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner"; // Assuming sonner or similar is used, let's check
 import Image from "next/image";
 import {
   ComposableMap,
@@ -127,6 +133,10 @@ export default function MapComponent({
   );
   const [showRoutes, setShowRoutes] = useState(true);
   const [showHeatmap, setShowHeatmap] = useState(true);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [isRecommending, setIsRecommending] = useState(false);
+  const [hoveredRecommendation, setHoveredRecommendation] = useState<Recommendation | null>(null);
+  const { token } = useAuth();
   const mapRef = useRef<HTMLDivElement>(null);
 
   // Zoom control functions
@@ -225,7 +235,7 @@ export default function MapComponent({
         routes.push({
           from: [current.lng, current.lat] as [number, number],
           to: [midLng, current.lat] as [number, number],
-          color: emotions[current.emotion]?.color || "#8b5cf6",
+          color: (current.emotion && emotions?.[current.emotion as string]?.color) || "#8b5cf6",
           index: i,
           isWrapped: true,
           part: 1,
@@ -234,7 +244,7 @@ export default function MapComponent({
         routes.push({
           from: [midLng, next.lat] as [number, number],
           to: [next.lng, next.lat] as [number, number],
-          color: emotions[current.emotion]?.color || "#8b5cf6",
+          color: (current.emotion && emotions?.[current.emotion as string]?.color) || "#8b5cf6",
           index: i,
           isWrapped: true,
           part: 2,
@@ -244,7 +254,7 @@ export default function MapComponent({
         routes.push({
           from: [current.lng, current.lat] as [number, number],
           to: [next.lng, next.lat] as [number, number],
-          color: emotions[current.emotion]?.color || "#8b5cf6",
+          color: (current.emotion && emotions?.[current.emotion as string]?.color) || "#8b5cf6",
           index: i,
           isWrapped: false,
         });
@@ -434,6 +444,38 @@ export default function MapComponent({
     }
   };
 
+  // AI 추천 핸들러
+  const handleAIRecommendation = async () => {
+    if (!token) {
+      alert("로그인이 필요한 기능입니다.");
+      return;
+    }
+
+    setIsRecommending(true);
+    setRecommendations([]);
+
+    try {
+      // 현재 지도 중심 좌표 기반 추천 (줌이 낮으면 전세계 추천 모드)
+      const [lng, lat] = center;
+      const isGlobal = zoom < 2;
+      const response = await aiApi.getRecommendations(token, lat, lng, isGlobal);
+
+      if (response.success) {
+        setRecommendations(response.recommendations);
+        if (response.recommendations.length === 0) {
+          alert("해당 지역에 대한 추천을 찾지 못했습니다.");
+        }
+      } else {
+        throw new Error(response.message || "추천을 가져오는데 실패했습니다.");
+      }
+    } catch (error: any) {
+      console.error("AI 추천 오류:", error);
+      alert(error.message || "AI 추천 중 오류가 발생했습니다.");
+    } finally {
+      setIsRecommending(false);
+    }
+  };
+
   return (
     <div className="relative">
       {/* Controls - Hidden in story mode */}
@@ -478,6 +520,27 @@ export default function MapComponent({
                 <>
                   <EyeOff className="w-4 h-4 mr-2" />
                   히트맵
+                </>
+              )}
+            </Button>
+
+            {/* AI 추천 버튼 */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAIRecommendation}
+              disabled={isRecommending}
+              className={`bg-slate-900/80 border-purple-500/50 text-purple-400 hover:text-white hover:bg-purple-500/20`}
+            >
+              {isRecommending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  AI 분석 중...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  AI 추천 발견
                 </>
               )}
             </Button>
@@ -637,6 +700,39 @@ export default function MapComponent({
                         />
                       ))}
 
+                    {/* AI 추천 마커 렌더링 */}
+                    {recommendations.map((rec, idx) => (
+                      <Marker key={`rec-${idx}`} coordinates={[rec.lng, rec.lat]}>
+                        <g
+                          onMouseEnter={(e: any) => {
+                            setHoveredRecommendation(rec);
+                            setTooltipPos({ x: e.clientX, y: e.clientY });
+                          }}
+                          onMouseLeave={() => {
+                            setHoveredRecommendation(null);
+                            setTooltipPos(null);
+                          }}
+                          style={{ cursor: "pointer" }}
+                          className="transition-transform hover:scale-125"
+                        >
+                          {/* 외곽 링 */}
+                          <circle
+                            r={12}
+                            fill="#a855f7"
+                            fillOpacity={0.2}
+                            className="animate-pulse"
+                          />
+                          {/* 메인 별 */}
+                          <path
+                            d="M 0,-8 L 2.4,-2.4 L 8,-2.4 L 3.5,1.2 L 5.2,6.4 L 0,3.2 L -5.2,6.4 L -3.5,1.2 L -8,-2.4 L -2.4,-2.4 Z"
+                            fill="#e879f9"
+                            stroke="white"
+                            strokeWidth={1}
+                          />
+                        </g>
+                      </Marker>
+                    ))}
+
                     {/* 마커 렌더링 */}
                     {clusters.map((cluster, idx) => {
                       // 클러스터의 대표 감정 (가장 최신 로그의 감정)
@@ -645,8 +741,8 @@ export default function MapComponent({
                           new Date(b.createdAt).getTime() -
                           new Date(a.createdAt).getTime()
                       )[0];
-                      const emotion = emotions[latestLog.emotion];
-                      const markerColor = emotion?.color || "#8b5cf6";
+                      const emotionAtMarker = latestLog.emotion ? emotions?.[latestLog.emotion as string] : null;
+                      const markerColor = emotionAtMarker?.color || "#8b5cf6";
 
                       return (
                         <Marker
@@ -759,7 +855,7 @@ export default function MapComponent({
                       <span
                         className="w-2 h-2 rounded-full"
                         style={{
-                          backgroundColor: emotions[log.emotion]?.color,
+                          backgroundColor: (log.emotion && emotions?.[log.emotion as string]?.color) || "#8b5cf6",
                         }}
                       />
                       {log.placeName}
@@ -780,7 +876,7 @@ export default function MapComponent({
               <>
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-lg">
-                    {emotions[hoveredCluster.logs[0].emotion]?.emoji}
+                    {hoveredCluster.logs[0].emotion ? (emotions?.[hoveredCluster.logs[0].emotion as string]?.emoji || "📍") : "📍"}
                   </span>
                   <div className="text-sm font-bold text-white">
                     {hoveredCluster.logs[0].placeName}
@@ -803,15 +899,53 @@ export default function MapComponent({
                     className="w-2 h-2 rounded-full"
                     style={{
                       backgroundColor:
-                        emotions[hoveredCluster.logs[0].emotion]?.color,
+                        (hoveredCluster.logs[0].emotion && emotions?.[hoveredCluster.logs[0].emotion as string]?.color) || "#8b5cf6",
                     }}
                   />
                   <span className="text-xs text-slate-300">
-                    {emotions[hoveredCluster.logs[0].emotion]?.label}
+                    {hoveredCluster.logs[0].emotion ? (emotions?.[hoveredCluster.logs[0].emotion as string]?.label || "여행") : "여행"}
                   </span>
                 </div>
               </>
             )}
+          </div>
+        </motion.div>
+      )}
+
+      {/* AI 추천 툴팁 */}
+      {hoveredRecommendation && tooltipPos && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="fixed z-50 pointer-events-none"
+          style={{
+            left: tooltipPos.x + 15,
+            top: tooltipPos.y + 15,
+          }}
+        >
+          <div className="bg-gradient-to-br from-slate-900/95 to-purple-900/90 backdrop-blur-lg border border-purple-500/50 rounded-lg shadow-2xl px-4 py-3 min-w-[250px] max-w-[300px]">
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles className="w-4 h-4 text-purple-400" />
+              <div className="text-base font-bold text-white">
+                {hoveredRecommendation.name}
+              </div>
+            </div>
+            
+            <p className="text-xs text-purple-200 mb-3 leading-relaxed bg-purple-500/10 p-2 rounded">
+              {hoveredRecommendation.reason}
+            </p>
+            
+            <div className="flex flex-wrap gap-1">
+              {hoveredRecommendation.tags.map((tag, i) => (
+                <span key={i} className="px-1.5 py-0.5 rounded-full bg-slate-800 text-[10px] text-purple-300 border border-purple-500/30">
+                  {tag}
+                </span>
+              ))}
+            </div>
+            
+            <div className="text-[10px] text-slate-400 mt-3 text-right">
+              AI가 분석한 당신의 취향 맞춤 장소
+            </div>
           </div>
         </motion.div>
       )}
@@ -826,3 +960,4 @@ export default function MapComponent({
     </div>
   );
 }
+

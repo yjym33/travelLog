@@ -3,12 +3,12 @@
 import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import type { TravelLog, Emotion } from "@/types/travel";
-import EmotionDistribution from "./stats/emotion-distribution";
+
 import CountryMap from "./stats/country-map";
 import YearlyTravelChart from "./stats/yearly-travel-chart";
 import TagWordCloud from "./stats/tag-wordcloud";
 import MonthlyHeatmap from "./stats/monthly-heatmap";
-import { BarChart3, MapPin, Heart, Tag, Calendar } from "lucide-react";
+import { BarChart3, MapPin, Heart, Tag, Calendar, Brain } from "lucide-react";
 
 interface StatsViewProps {
   travelLogs: TravelLog[];
@@ -125,13 +125,25 @@ export default function StatsView({ travelLogs, emotions }: StatsViewProps) {
 
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* 감정 분포 차트 */}
+        {/* AI 추천 태그 분석 */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
         >
-          <EmotionDistribution travelLogs={travelLogs} emotions={emotions} />
+          <Card className="bg-slate-800/50 border-slate-700 h-full p-6">
+            <h3 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+              <Brain className="w-5 h-5 text-purple-400" />
+              AI 사진 분석 인사이트
+            </h3>
+            <div className="flex flex-col items-center justify-center h-48 text-slate-400 text-center">
+              <div className="w-16 h-16 bg-purple-500/10 rounded-full flex items-center justify-center mb-4">
+                <Brain className="w-8 h-8 text-purple-400" />
+              </div>
+              <p className="text-sm">AI가 {travelLogs.flatMap(l => l.tags).length}개의 여행 태그를 분석했습니다.</p>
+              <p className="text-xs mt-1">당신의 사진 속 가장 빈번하게 등장한 키워드를 확인해보세요.</p>
+            </div>
+          </Card>
         </motion.div>
 
         {/* 연도별 여행 횟수 */}

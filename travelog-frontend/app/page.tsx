@@ -108,6 +108,7 @@ export default function HomePage() {
       emotion: "happy",
       photos: [],
       diary: "",
+      aiDescription: "", // AI 설명 초기화
       tags: [],
       createdAt: new Date().toISOString().split("T")[0],
       updatedAt: new Date().toISOString().split("T")[0],
@@ -130,6 +131,7 @@ export default function HomePage() {
             emotion: log.emotion,
             photos: log.photos,
             diary: log.diary,
+            aiDescription: log.aiDescription, // AI 설명 추가
             tags: log.tags,
           },
         });
@@ -145,6 +147,7 @@ export default function HomePage() {
             emotion: log.emotion,
             photos: log.photos,
             diary: log.diary,
+            aiDescription: log.aiDescription, // AI 설명 추가
             tags: log.tags,
           },
         });

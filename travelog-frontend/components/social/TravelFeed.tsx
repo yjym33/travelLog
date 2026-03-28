@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Share2 } from "lucide-react";
+import { Share2, Brain } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -57,7 +57,16 @@ export default function TravelFeed() {
             <Badge>{log.country}</Badge>
           </div>
 
-          <div className="text-slate-500">감정: {log.emotion}</div>
+          {/* AI Description (Photo Story) - Social Feed */}
+          {log.aiDescription && (
+            <div className="bg-purple-500/5 p-3 rounded-lg border border-purple-500/10 mb-2">
+              <div className="flex items-center gap-2 mb-1 text-[11px] font-semibold text-purple-400">
+                <Brain className="w-3 h-3" />
+                AI 사진 분석 및 스토리
+              </div>
+              <p className="text-xs text-slate-400 italic">"{log.aiDescription}"</p>
+            </div>
+          )}
 
           <div className="flex items-center gap-4">
             <LikeButton

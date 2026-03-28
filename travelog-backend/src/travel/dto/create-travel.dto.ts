@@ -31,9 +31,15 @@ export class CreateTravelDto {
   @IsString()
   country: string;
 
-  @ApiProperty({ example: 'happy', description: '감정' })
+  @ApiProperty({ example: 'happy', description: '감정 (선택사항)' })
   @IsString()
-  emotion: string;
+  @IsOptional()
+  emotion?: string;
+
+  @ApiProperty({ example: '맑은 하늘 아래 즐거운 산책', description: 'AI 사진 설명' })
+  @IsString()
+  @IsOptional()
+  aiDescription?: string;
 
   @ApiProperty({
     example: ['https://example.com/photo1.jpg'],

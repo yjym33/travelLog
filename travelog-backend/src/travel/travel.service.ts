@@ -8,16 +8,44 @@ import { CreateTravelDto } from './dto/create-travel.dto';
 import { UpdateTravelDto } from './dto/update-travel.dto';
 import { FilterTravelDto } from './dto/filter-travel.dto';
 
+import { AiService } from '../ai/ai.service';
+
 @Injectable()
 export class TravelService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private aiService: AiService,
+  ) {}
 
   async create(userId: string, createTravelDto: CreateTravelDto) {
+    let { aiDescription, tags, photos } = createTravelDto;
+
+    // AI 기능을 활용한 자동 완성 (사진이 있을 경우)
+    if (photos && photos.length > 0) {
+      if (!aiDescription) {
+        aiDescription = await this.aiService.generatePhotoDescription(photos);
+      }
+      
+      if (!tags || tags.length === 0) {
+        const autoTags = await this.aiService.analyzeImage(photos[0]);
+        tags = [...new Set([...(tags || []), ...autoTags])];
+      }
+    }
+
+    const { lat, lng, placeName, country, emotion, diary } = createTravelDto;
+
     const travelLog = await this.prisma.travelLog.create({
       data: {
-        ...createTravelDto,
+        lat,
+        lng,
+        placeName,
+        country,
+        emotion,
+        diary,
         userId,
-        tags: createTravelDto.tags || [],
+        photos: photos || [],
+        aiDescription,
+        tags: tags || [],
       },
     });
 
@@ -120,7 +148,8 @@ export class TravelService {
 
     const emotionDistribution = travelLogs.reduce(
       (acc, log) => {
-        acc[log.emotion] = (acc[log.emotion] || 0) + 1;
+        const key = log.emotion || 'none';
+        acc[key] = (acc[key] || 0) + 1;
         return acc;
       },
       {} as Record<string, number>,
@@ -148,7 +177,7 @@ export class TravelService {
       totalLogs,
       uniqueCountries: uniqueCountries.length,
       countries: uniqueCountries,
-      emotionDistribution,
+      // emotionDistribution은 감성 기능 제외에 따라 쿼리하지 않음
       countryDistribution,
       monthlyTravels,
     };

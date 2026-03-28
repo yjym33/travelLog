@@ -16,7 +16,7 @@ import { SendFriendRequestDto } from './dto/send-friend-request.dto';
 import { GetFriendsDto } from './dto/get-friends.dto';
 import { SearchUsersDto } from './dto/search-users.dto';
 
-@Controller('api/friendships')
+@Controller('friendships')
 @UseGuards(JwtAuthGuard)
 export class FriendshipController {
   constructor(private readonly friendshipService: FriendshipService) {}

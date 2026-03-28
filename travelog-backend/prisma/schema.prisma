@@ -62,9 +62,10 @@ model TravelLog {
   lng         Float
   placeName   String
   country     String
-  emotion     String
+  emotion     String?  // 감성 기능 제외에 따른 선택사항 변경
   photos      String[] // URL 배열
   diary       String   @db.Text
+  aiDescription String? @db.Text // AI가 생성한 사진 설명
   tags        String[]
   
   // 공개 설정

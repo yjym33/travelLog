@@ -82,7 +82,8 @@ export class UserService {
     ];
     const emotionDistribution = stats.travelLogs.reduce(
       (acc, log) => {
-        acc[log.emotion] = (acc[log.emotion] || 0) + 1;
+        const key = log.emotion || 'none';
+        acc[key] = (acc[key] || 0) + 1;
         return acc;
       },
       {} as Record<string, number>,

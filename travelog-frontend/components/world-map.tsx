@@ -269,7 +269,7 @@ export default function WorldMap({
         <div className="relative w-full h-[600px] bg-gradient-to-b from-slate-700 to-slate-800 rounded-lg overflow-hidden">
           {/* 핀 제거 모드 안내 */}
           {isRemoveMode && !isStoryMode && (
-            <div className="absolute top-4 left-4 z-10">
+            <div className="absolute top-20 left-4 z-10">
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -342,7 +342,7 @@ export default function WorldMap({
           {/* Story Preview Card */}
           <StoryPreviewCard
             travelLog={sortedLogs[currentStoryIndex]}
-            emotion={emotions[sortedLogs[currentStoryIndex].emotion]}
+            emotion={(sortedLogs[currentStoryIndex].emotion ? emotions?.[sortedLogs[currentStoryIndex].emotion as string] : undefined) || { color: "#8b5cf6", emoji: "📍", label: "여행" }}
             isVisible={isStoryMode}
           />
 

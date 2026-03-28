@@ -7,9 +7,10 @@ export interface TravelLog {
   lng: number;
   placeName: string;
   country: string;
-  emotion: string;
+  emotion?: string; // 감성 기능 제외에 따른 선택사항 변경
   photos: string[];
   diary: string;
+  aiDescription?: string; // AI가 생성한 사진 설명
   tags: string[];
   createdAt: string;
   updatedAt: string;
@@ -20,9 +21,10 @@ export interface CreateTravelRequest {
   lng: number;
   placeName: string;
   country: string;
-  emotion: string;
+  emotion?: string;
   photos: string[];
   diary: string;
+  aiDescription?: string;
   tags: string[];
 }
 
@@ -32,11 +34,12 @@ export interface UpdateTravelRequest {
   emotion?: string;
   photos?: string[];
   diary?: string;
+  aiDescription?: string;
   tags?: string[];
 }
 
 export interface FilterTravelRequest {
-  emotions?: string[];
+  emotions?: string[]; // Legacy
   countries?: string[];
   tags?: string[];
   startDate?: string;
@@ -47,7 +50,8 @@ export interface TravelStatistics {
   totalLogs: number;
   uniqueCountries: number;
   countries: string[];
-  emotionDistribution: Record<string, number>;
+  // emotionDistribution은 레거시
+  emotionDistribution?: Record<string, number>;
   countryDistribution: Record<string, number>;
   monthlyTravels: Record<string, number>;
 }
@@ -62,6 +66,7 @@ export interface TravelResponse {
   emotion: string;
   photos: string[];
   diary: string;
+  aiDescription?: string; // AI가 생성한 사진 설명 추가
   tags: string[];
   createdAt: string;
   updatedAt: string;

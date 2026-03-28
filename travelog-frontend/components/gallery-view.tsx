@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { MapPin, Calendar, Image as ImageIcon } from "lucide-react";
+import { MapPin, Calendar, Image as ImageIcon, Brain } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { TravelLog, Emotion } from "@/types/travel";
@@ -98,14 +98,14 @@ function SortableCard({
                 </span>
               </div>
             )}
-            <div className="absolute top-3 right-3">
-              <div
-                className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium shadow-lg"
-                style={{ backgroundColor: emotion.color }}
-              >
-                {emotion.emoji}
+            {/* Category Indicator (Tags first tag or static) */}
+            {log.tags[0] && (
+              <div className="absolute top-3 right-3">
+                <Badge className="bg-purple-500 text-white border-none shadow-lg px-3 py-1">
+                  {log.tags[0]}
+                </Badge>
               </div>
-            </div>
+            )}
             {/* Hover Overlay */}
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
               <div className="opacity-0 group-hover:opacity-100 transition-opacity">
@@ -142,11 +142,19 @@ function SortableCard({
 
           {/* Diary Preview */}
           <p
-            className="text-slate-300 text-sm mb-3 line-clamp-2"
+            className="text-slate-300 text-sm mb-2 line-clamp-2"
             onClick={() => onLogClick(log)}
           >
             {log.diary}
           </p>
+
+          {/* AI Description (Photo Story) */}
+          {log.aiDescription && (
+            <div className="flex items-center gap-1.5 text-[11px] text-purple-400 italic mb-3 bg-purple-500/10 p-2 rounded border border-purple-500/20">
+              <Brain className="w-3 h-3" />
+              <span className="line-clamp-1">"{log.aiDescription}"</span>
+            </div>
+          )}
 
           {/* Tags */}
           {log.tags.length > 0 && (
@@ -229,7 +237,7 @@ export default function GalleryView({
       <div className="text-center">
         <h2 className="text-2xl font-bold text-white mb-2">여행 갤러리</h2>
         <p className="text-slate-400">
-          감정과 함께 담은 소중한 순간들 · 드래그하여 순서 변경 가능
+          사진으로 기록한 소중한 여행의 기억들 · 드래그하여 순서 변경 가능
         </p>
       </div>
 
@@ -244,7 +252,8 @@ export default function GalleryView({
         >
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {items.map((log, index) => {
-              const emotion = emotions[log.emotion];
+              const emotionKey = (log.emotion || "happy") as keyof typeof emotions;
+              const emotion = emotions[emotionKey];
 
               return (
                 <SortableCard

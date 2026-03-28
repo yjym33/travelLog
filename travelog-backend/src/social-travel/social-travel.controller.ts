@@ -15,7 +15,7 @@ import { UpdateVisibilityDto } from './dto/update-visibility.dto';
 import { ShareTravelLogDto } from './dto/share-travel-log.dto';
 import { GetFeedDto } from './dto/get-feed.dto';
 
-@Controller('api/travel-logs')
+@Controller('travel-logs')
 @UseGuards(JwtAuthGuard)
 export class SocialTravelController {
   constructor(private readonly socialTravelService: SocialTravelService) {}

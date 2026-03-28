@@ -1,61 +1,115 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
+  private readonly aiServerUrl = 'http://localhost:8000';
 
-  constructor(private readonly configService: ConfigService) {
-    this.logger.log('자체 AI 이미지 분석 서비스가 초기화되었습니다.');
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {
+    this.logger.log(`TravelLog AI 엔진이 연결 준비되었습니다. (FastAPI: ${this.aiServerUrl})`);
   }
 
   /**
-   * 사진을 분석하여 자동 태그를 생성합니다.
-   * @param imageUrl 분석할 이미지 URL
-   * @returns 생성된 태그 배열
+   * 사진들을 분석하여 하나의 여행 기록에 대한 AI 설명을 생성합니다.
    */
-  async analyzeImage(imageUrl: string): Promise<string[]> {
+  async generatePhotoDescription(imageUrls: string[]): Promise<string> {
     try {
-      this.logger.log(`이미지 분석 시작: ${imageUrl}`);
+      if (!imageUrls || imageUrls.length === 0) return '';
+      
+      this.logger.log(`AI 서버에 설명 생성 요청 중... (${imageUrls.length}장)`);
+      
+      const response = await fetch(`${this.aiServerUrl}/generate-description`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_urls: imageUrls }),
+      });
 
-      // 이미지 메타데이터 기반 분석
-      const tags = this.analyzeImageMetadata(imageUrl);
+      if (!response.ok) throw new Error(`AI Server Error: ${response.status}`);
 
-      this.logger.log(`이미지 분석 완료: ${tags.join(', ')}`);
-      return tags;
+      const data = await response.json();
+      return data.description;
     } catch (error) {
-      this.logger.error(
-        `이미지 분석 실패, 시뮬레이션 모드로 폴백: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
-      );
-      return await this.simulateImageAnalysis(imageUrl);
+      this.logger.error('설명 생성 실패 (폴백 적용):', error.message);
+      return '아름다운 여행의 기억이 담긴 사진입니다.';
     }
   }
 
   /**
-   * 일기 텍스트를 분석하여 감정을 추출합니다.
-   * @param diaryText 분석할 일기 텍스트
-   * @returns 감정 분석 결과
+   * 사진을 분석하여 자동 태그를 생성합니다.
+   */
+  async analyzeImage(imageUrl: string): Promise<string[]> {
+    try {
+      this.logger.log(`AI 서버에 이미지 분석 요청 중: ${imageUrl}`);
+
+      const response = await fetch(`${this.aiServerUrl}/analyze-image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_url: imageUrl }),
+      });
+
+      if (!response.ok) throw new Error(`AI Server Error: ${response.status}`);
+
+      const data = await response.json();
+      return data.tags;
+    } catch (error) {
+      this.logger.error('이미지 분석 실패 (폴백 적용):', error.message);
+      return ['#여행', '#추억', '#기록'];
+    }
+  }
+
+  /**
+   * 사진과 장소 정보를 바탕으로 한 편의 여행 일기(스토리) 생성
+   */
+  async generateDiary(imageUrls: string[], placeName: string): Promise<string> {
+    try {
+      this.logger.log(`AI 서버에 여행 일기 생성 요청 중: ${placeName}`);
+
+      const response = await fetch(`${this.aiServerUrl}/generate-diary`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_urls: imageUrls, place_name: placeName }),
+      });
+
+      if (!response.ok) throw new Error(`AI Server Error: ${response.status}`);
+
+      const data = await response.json();
+      return data.diary;
+    } catch (error) {
+      this.logger.error('일기 생성 실패 (폴백 적용):', error.message);
+      return `${placeName}에서의 소중한 기록입니다.`;
+    }
+  }
+
+  /**
+   * 여러 개의 여행 기록을 요약하여 여행 스토리로 만들어줍니다.
+   * @param logs 여행 기록 배열
+   * @returns AI가 생성한 통합 요약
+   */
+  async generateTripSummary(logs: any[]): Promise<string> {
+    if (!logs || logs.length === 0) return '';
+    
+    const countries = [...new Set(logs.map(l => l.country))];
+    const places = [...new Set(logs.map(l => l.placeName))];
+    const totalPhotos = logs.reduce((sum, l) => sum + (l.photos?.length || 0), 0);
+
+    return `${countries.join(', ')} 여행의 소중한 기록입니다. ${places.join(', ')} 등 주요 장소에서의 ${totalPhotos}장의 사진과 함께 당신의 여행 이야기를 멋진 한 편의 다이어리로 요약해 보세요.`;
+  }
+
+  /**
+   * [DEPRECATED] 감성 분석 기능 (기능 전환에 따라 사용되지 않음)
    */
   async analyzeEmotion(diaryText: string): Promise<{
     emotion: string;
     confidence: number;
     keywords: string[];
   }> {
-    try {
-      this.logger.log(`감정 분석 시작: ${diaryText.substring(0, 50)}...`);
-
-      const result = await this.simulateEmotionAnalysis(diaryText);
-
-      this.logger.log(
-        `감정 분석 완료: ${result.emotion} (${result.confidence})`,
-      );
-      return result;
-    } catch (error) {
-      this.logger.error(
-        `감정 분석 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
-      );
-      throw new Error('감정 분석에 실패했습니다.');
-    }
+    this.logger.warn('감성 분석 기능은 더 이상 사용되지 않습니다.');
+    return { emotion: 'neutral', confidence: 1.0, keywords: [] };
   }
 
   /**
@@ -443,5 +497,48 @@ export class AiService {
       confidence,
       keywords: keywords.slice(0, 3),
     };
+  }
+
+  /**
+   * 지도 위치와 사용자 취향(태그)을 기반으로 여행지 추천
+   */
+  async recommendDestinations(userId: string, lat: number, lng: number, isGlobal: boolean = false): Promise<any[]> {
+    try {
+      // 1. 사용자의 최근 태그 습득
+      const logs = await this.prisma.travelLog.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: { tags: true }
+      });
+
+      const allTags = logs.flatMap(log => log.tags);
+      const uniqueTags = [...new Set(allTags)].slice(0, 10);
+
+      const logMsg = isGlobal 
+        ? `전역 AI 추천 요청 중 (Global Discover), 취향: ${uniqueTags.join(', ')}`
+        : `지역 AI 추천 요청 중: (${lat}, ${lng}) 위주, 취향: ${uniqueTags.join(', ')}`;
+      
+      this.logger.log(logMsg);
+
+      // 2. AI 서버 호출
+      const response = await fetch(`${this.aiServerUrl}/recommend-destinations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lat: isGlobal ? null : lat,
+          lng: isGlobal ? null : lng,
+          user_tags: uniqueTags,
+          is_global: isGlobal
+        }),
+      });
+
+      if (!response.ok) throw new Error(`AI Server Error: ${response.status}`);
+
+      return await response.json();
+    } catch (error) {
+      this.logger.error('추천 생성 실패:', error.message);
+      return [];
+    }
   }
 }

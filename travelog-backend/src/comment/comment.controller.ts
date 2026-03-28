@@ -17,7 +17,7 @@ import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
 import { GetCommentsDto } from './dto/get-comments.dto';
 
-@Controller('api/comments')
+@Controller('comments')
 @UseGuards(JwtAuthGuard)
 export class CommentController {
   constructor(private readonly commentService: CommentService) {}

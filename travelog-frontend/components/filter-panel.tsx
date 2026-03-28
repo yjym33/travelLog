@@ -39,18 +39,11 @@ export default function FilterPanel({
 
   // 활성 필터 개수 계산
   const activeFilterCount =
-    filters.emotions.length +
     filters.tags.length +
     filters.countries.length +
     (filters.dateRange.start || filters.dateRange.end ? 1 : 0);
 
-  // 감정 필터 토글
-  const toggleEmotion = (emotionKey: string) => {
-    const newEmotions = filters.emotions.includes(emotionKey)
-      ? filters.emotions.filter((e) => e !== emotionKey)
-      : [...filters.emotions, emotionKey];
-    onFiltersChange({ ...filters, emotions: newEmotions });
-  };
+
 
   // 태그 필터 토글
   const toggleTag = (tag: string) => {
@@ -93,7 +86,7 @@ export default function FilterPanel({
   // 모든 필터 초기화
   const clearAllFilters = () => {
     onFiltersChange({
-      emotions: [],
+      emotions: [], // Legacy 지원용으로 빈 배열 유지
       dateRange: { start: null, end: null },
       tags: [],
       countries: [],
@@ -174,22 +167,7 @@ export default function FilterPanel({
                       활성 필터 ({activeFilterCount})
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {filters.emotions.map((emotionKey) => (
-                        <Badge
-                          key={emotionKey}
-                          variant="secondary"
-                          className="bg-purple-500/20 text-purple-300"
-                        >
-                          {emotions[emotionKey]?.emoji}{" "}
-                          {emotions[emotionKey]?.label}
-                          <button
-                            onClick={() => toggleEmotion(emotionKey)}
-                            className="ml-1 hover:text-red-400"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </Badge>
-                      ))}
+
                       {filters.tags.map((tag) => (
                         <Badge
                           key={tag}
@@ -245,63 +223,7 @@ export default function FilterPanel({
                 )}
 
                 <div className="space-y-6">
-                  {/* 1. 감정별 필터 */}
-                  <Card className="bg-slate-800/50 border-slate-700 p-4">
-                    <button
-                      onClick={() =>
-                        setActiveSection(
-                          activeSection === "emotions" ? null : "emotions"
-                        )
-                      }
-                      className="w-full flex items-center justify-between mb-3"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Smile className="w-4 h-4 text-purple-400" />
-                        <h3 className="font-semibold text-white">감정</h3>
-                        {filters.emotions.length > 0 && (
-                          <Badge className="bg-purple-500/20">
-                            {filters.emotions.length}
-                          </Badge>
-                        )}
-                      </div>
-                      <ChevronDown
-                        className={`w-4 h-4 text-slate-400 transition-transform ${
-                          activeSection === "emotions" ? "rotate-180" : ""
-                        }`}
-                      />
-                    </button>
-                    <AnimatePresence>
-                      {activeSection === "emotions" && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          className="grid grid-cols-2 gap-2"
-                        >
-                          {Object.entries(emotions).map(([key, emotion]) => (
-                            <button
-                              key={key}
-                              onClick={() => toggleEmotion(key)}
-                              className={`p-3 rounded-lg border-2 transition-all ${
-                                filters.emotions.includes(key)
-                                  ? "border-purple-500 bg-purple-500/20"
-                                  : "border-slate-600 bg-slate-700/50 hover:border-slate-500"
-                              }`}
-                            >
-                              <div className="text-center">
-                                <div className="text-2xl mb-1">
-                                  {emotion.emoji}
-                                </div>
-                                <div className="text-xs text-slate-300">
-                                  {emotion.label}
-                                </div>
-                              </div>
-                            </button>
-                          ))}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </Card>
+
 
                   {/* 2. 기간별 검색 */}
                   <Card className="bg-slate-800/50 border-slate-700 p-4">

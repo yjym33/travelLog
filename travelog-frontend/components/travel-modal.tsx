@@ -8,6 +8,7 @@ import {
   MapPin,
   Calendar,
   Tag,
+  Sparkles,
   Trash2,
   Upload,
   Share2,
@@ -63,11 +64,12 @@ export default function TravelModal({
     lng: 0,
     placeName: "",
     country: "",
-    emotion: "happy",
+    emotion: "happy", // 하위 호환성을 위해 기본값 유지하지만 UI에서는 노출 최소화
     photos: [],
     diary: "",
+    aiDescription: "", // AI가 생성한 사진 설명 추가
     tags: [],
-    createdAt: "",
+    createdAt: new Date().toISOString().split("T")[0],
     updatedAt: "",
   });
   const [newTag, setNewTag] = useState("");
@@ -264,26 +266,63 @@ export default function TravelModal({
     await analyzeImage(imageUrl, true);
   };
 
-  // AI 감정 분석 함수
-  const analyzeEmotion = async (text: string) => {
-    if (!token || text.length < 10) return;
+  // AI 사진 설명 생성 함수
+  const generateAiDescription = async () => {
+    if (!token || formData.photos.length === 0) return;
 
+    setIsAnalyzing(true);
+    setAiError(null);
     try {
-      const result = await aiApi.analyzeEmotion(token, text);
+      const result = await aiApi.generateDescription(token, formData.photos);
       if (result.success) {
-        setSuggestedEmotion(result.emotion);
-        console.log("AI 감정 분석:", result.emotion, result.confidence);
-      } else {
-        throw new Error(result.message || "감정 분석에 실패했습니다.");
+        setFormData((prev) => ({
+          ...prev,
+          aiDescription: result.description,
+        }));
+        console.log("AI 설명 생성 성공:", result.description);
       }
     } catch (error) {
-      console.error("감정 분석 실패:", error);
-      setAiError(
-        error instanceof Error
-          ? error.message
-          : "감정 분석 중 오류가 발생했습니다."
-      );
+      console.error("AI 설명 생성 실패:", error);
+      setAiError("AI 설명 생성 중 오류가 발생했습니다.");
+    } finally {
+      setIsAnalyzing(false);
     }
+  };
+
+  // AI 여행 스토리(일기) 생성 함수
+  const generateAiDiary = async () => {
+    if (!token || formData.photos.length === 0 || !formData.placeName) {
+      if (!formData.placeName) alert("장소명을 먼저 입력해주세요.");
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setAiError(null);
+    try {
+      const result = await aiApi.generateDiary(
+        token,
+        formData.photos,
+        formData.placeName
+      );
+      if (result.success) {
+        setFormData((prev) => ({
+          ...prev,
+          diary: result.story,
+        }));
+        console.log("AI 일기 생성 성공");
+      }
+    } catch (error) {
+      console.error("AI 일기 생성 실패:", error);
+      setAiError("AI 일기 생성 중 오류가 발생했습니다.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // 기존 감정 분석 로직은 비활성화 또는 단순화
+  const analyzeEmotion = async (text: string) => {
+    // 감성 기능 제외로 인해 현재는 동작하지 않도록 함
+    return;
   };
 
   // AI 제안 태그 추가
@@ -315,39 +354,16 @@ export default function TravelModal({
   const handleSave = async () => {
     if (!formData.placeName.trim() || !token) return;
 
+    if (uploadingPhotos) {
+      alert("사진 업로드 중입니다. 잠시만 기다려주세요.");
+      return;
+    }
+
     setIsLoading(true);
     try {
-      if (formData.id) {
-        // 수정
-        const updateData: UpdateTravelRequest = {
-          placeName: formData.placeName,
-          country: formData.country,
-          emotion: formData.emotion,
-          photos: formData.photos,
-          diary: formData.diary,
-          tags: formData.tags,
-        };
-        const updatedLog = await travelApi.update(
-          token,
-          formData.id,
-          updateData
-        );
-        onSave(updatedLog);
-      } else {
-        // 생성
-        const createData: CreateTravelRequest = {
-          lat: formData.lat,
-          lng: formData.lng,
-          placeName: formData.placeName,
-          country: formData.country,
-          emotion: formData.emotion,
-          photos: formData.photos,
-          diary: formData.diary,
-          tags: formData.tags,
-        };
-        const newLog = await travelApi.create(token, createData);
-        onSave(newLog);
-      }
+      // 컴포넌트 내부에서 직접 API를 호출하는 대신 부모(Page)의 mutation을 사용하도록 변경
+      // 이를 통해 중복 호출 문제를 해결하고 상태 동기화를 일원화합니다.
+      await onSave(formData);
       onClose();
     } catch (error) {
       console.error("여행 기록 저장 실패:", error);
@@ -629,36 +645,42 @@ export default function TravelModal({
                     />
                   </div>
 
-                  {/* Emotion Selection */}
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-3">
-                      감정 선택
-                    </label>
-                    <div className="grid grid-cols-3 gap-3">
-                      {Object.entries(emotions).map(([key, emotion]) => (
-                        <motion.button
-                          key={key}
-                          type="button"
-                          className={`p-3 rounded-lg border-2 transition-all ${
-                            formData.emotion === key
-                              ? "border-white bg-slate-700"
-                              : "border-slate-600 bg-slate-800 hover:border-slate-500"
-                          }`}
-                          onClick={() =>
-                            setFormData((prev) => ({ ...prev, emotion: key }))
-                          }
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                        >
-                          <div className="text-center">
-                            <div className="text-2xl mb-1">{emotion.emoji}</div>
-                            <div className="text-xs text-slate-300">
-                              {emotion.label}
-                            </div>
-                          </div>
-                        </motion.button>
-                      ))}
+                  {/* AI Photo Description */}
+                  <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium text-purple-300 flex items-center">
+                        <Brain className="w-4 h-4 mr-2" />
+                        AI 사진 스토리 요약
+                      </label>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={generateAiDescription}
+                        disabled={isAnalyzing || formData.photos.length === 0}
+                        className="text-white bg-purple-600 hover:bg-purple-700 h-8"
+                      >
+                        {isAnalyzing ? (
+                          <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                        ) : (
+                          <Brain className="w-3 h-3 mr-1" />
+                        )}
+                        생성하기
+                      </Button>
                     </div>
+                    
+                    {formData.aiDescription ? (
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="text-sm text-slate-300 italic bg-slate-900/50 p-3 rounded-lg border border-purple-500/20"
+                      >
+                        "{formData.aiDescription}"
+                      </motion.div>
+                    ) : (
+                      <p className="text-xs text-slate-500">
+                        사진을 업로드하고 '생성하기' 버튼을 누르면 AI가 사진의 분위기를 멋지게 요약해 드립니다.
+                      </p>
+                    )}
                   </div>
 
                   {/* Photos */}
@@ -765,9 +787,25 @@ export default function TravelModal({
 
                   {/* Diary */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
-                      여행 일기
-                    </label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-slate-300">
+                        여행 일기
+                      </label>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={generateAiDiary}
+                        disabled={isAnalyzing || formData.photos.length === 0 || !formData.placeName}
+                        className="text-white bg-blue-600 hover:bg-blue-700 h-7 text-xs"
+                      >
+                        {isAnalyzing ? (
+                          <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                        ) : (
+                          <Sparkles className="w-3 h-3 mr-1" />
+                        )}
+                        AI 일기 자동 생성
+                      </Button>
+                    </div>
                     <Textarea
                       value={formData.diary}
                       onChange={(e) => {
@@ -776,14 +814,9 @@ export default function TravelModal({
                           ...prev,
                           diary: newDiary,
                         }));
-
-                        // 일기 텍스트가 충분할 때 AI 감정 분석 실행
-                        if (newDiary.length >= 10) {
-                          analyzeEmotion(newDiary);
-                        }
                       }}
-                      placeholder="이곳에서의 감정과 경험을 자유롭게 적어보세요..."
-                      rows={4}
+                      placeholder="이곳에서의 추억을 자유롭게 적어보세요. 사진을 업로드하고 AI 일기 생성 버튼을 누르면 멋진 글을 작성해 드립니다."
+                      rows={6}
                       className="bg-slate-800 border-slate-600 text-white resize-none"
                     />
                   </div>
@@ -877,32 +910,7 @@ export default function TravelModal({
                     )}
                   </div>
 
-                  {/* AI 제안 감정 */}
-                  {suggestedEmotion &&
-                    suggestedEmotion !== formData.emotion && (
-                      <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <CheckCircle className="w-4 h-4 text-blue-400" />
-                            <span className="text-sm font-medium text-blue-300">
-                              AI 감정 제안
-                            </span>
-                          </div>
-                          <Button
-                            onClick={applySuggestedEmotion}
-                            size="sm"
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                          >
-                            적용
-                          </Button>
-                        </div>
-                        <p className="text-sm text-blue-200">
-                          일기를 분석한 결과{" "}
-                          <strong>{emotions[suggestedEmotion]?.label}</strong>{" "}
-                          감정이 더 적합해 보입니다.
-                        </p>
-                      </div>
-                    )}
+
 
                   {/* AI 제안 태그 */}
                   {suggestedTags.length > 0 && (

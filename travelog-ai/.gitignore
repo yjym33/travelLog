@@ -1,0 +1,30 @@
+# Python dependencies
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Environment variables
+.env
+.env.local
+.env.dev
+.env.prod
+.env.test
+
+# OS & IDEs
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log

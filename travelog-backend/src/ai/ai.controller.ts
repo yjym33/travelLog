@@ -7,6 +7,8 @@ import {
   HttpStatus,
   BadRequestException,
   InternalServerErrorException,
+  Get,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -19,6 +21,7 @@ import { AiService } from './ai.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AnalyzeImageDto } from './dto/analyze-image.dto';
 import { AnalyzeEmotionDto } from './dto/analyze-emotion.dto';
+import { GetUser } from '../auth/decorators/get-user.decorator';
 
 @ApiTags('AI 분석')
 @Controller('ai')
@@ -89,67 +92,108 @@ export class AiController {
     }
   }
 
-  @Post('analyze-emotion')
+  @Post('generate-description')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: '일기 텍스트 감정 분석' })
+  @ApiOperation({ summary: '사진 분석을 통한 AI 설명 생성' })
   @ApiResponse({
     status: 200,
-    description: '감정 분석 성공',
+    description: '설명 생성 성공',
     schema: {
       type: 'object',
       properties: {
         success: { type: 'boolean', example: true },
-        emotion: { type: 'string', example: 'happy' },
-        confidence: { type: 'number', example: 0.9 },
-        keywords: {
-          type: 'array',
-          items: { type: 'string' },
-          example: ['행복', '기쁨'],
-        },
+        description: { type: 'string', example: '푸른 바다가 보이는 아름다운 풍경입니다.' },
       },
     },
   })
-  @ApiResponse({ status: 400, description: '잘못된 요청' })
-  @ApiResponse({ status: 500, description: '서버 오류' })
-  @ApiBody({
-    type: AnalyzeEmotionDto,
-    description: '분석할 일기 텍스트',
-    examples: {
-      example1: {
-        summary: '행복한 일기',
-        value: {
-          text: '오늘은 정말 행복한 하루였다. 친구들과 함께 즐거운 시간을 보냈다.',
-        },
-      },
-    },
-  })
-  async analyzeEmotion(@Body() analyzeEmotionDto: AnalyzeEmotionDto) {
-    try {
-      // 텍스트 유효성 검사
-      if (!analyzeEmotionDto.text || analyzeEmotionDto.text.trim().length < 3) {
-        throw new BadRequestException(
-          '분석할 텍스트가 너무 짧습니다. 최소 3자 이상 입력해주세요.',
-        );
-      }
-
-      const result = await this.aiService.analyzeEmotion(
-        analyzeEmotionDto.text,
-      );
-
-      return {
-        success: true,
-        ...result,
-        message: '감정 분석이 완료되었습니다.',
-      };
-    } catch (error) {
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-
-      throw new InternalServerErrorException(
-        '감정 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
-      );
+  async generateDescription(@Body() body: { imageUrls: string[] }) {
+    if (!body.imageUrls || body.imageUrls.length === 0) {
+      throw new BadRequestException('이미지 URL 배열이 필요합니다.');
     }
+
+    const description = await this.aiService.generatePhotoDescription(body.imageUrls);
+
+    return {
+      success: true,
+      description,
+      message: 'AI 설명 생성이 완료되었습니다.',
+    };
+  }
+
+  @Post('generate-diary')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '사진과 장소 정보를 통한 AI 일기 생성' })
+  @ApiResponse({
+    status: 200,
+    description: '일기 생성 성공',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        story: { type: 'string', example: '오늘은 정말 멋진 여행이었습니다...' },
+      },
+    },
+  })
+  async generateDiary(@Body() body: { imageUrls: string[]; placeName: string }) {
+    if (!body.imageUrls || body.imageUrls.length === 0) {
+      throw new BadRequestException('이미지 URL 배열이 필요합니다.');
+    }
+    if (!body.placeName) {
+      throw new BadRequestException('장소명이 필요합니다.');
+    }
+
+    const story = await this.aiService.generateDiary(
+      body.imageUrls,
+      body.placeName,
+    );
+
+    return {
+      success: true,
+      story,
+      message: 'AI 일기 생성이 완료되었습니다.',
+    };
+  }
+
+  @Post('analyze-emotion')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '[DEPRECATED] 일기 텍스트 감정 분석' })
+  @ApiResponse({ status: 200, description: '감정 분석 성공' })
+  async analyzeEmotion(@Body() analyzeEmotionDto: AnalyzeEmotionDto) {
+    const result = await this.aiService.analyzeEmotion(analyzeEmotionDto.text);
+    return {
+      success: true,
+      ...result,
+      message: '감정 분석이 완료되었습니다. (레거시)',
+    };
+  }
+
+  @Get('recommendations')
+  @ApiOperation({ summary: '지도 위치와 사용자 취향을 기반으로 여행지 추천' })
+  @ApiResponse({ status: 200, description: '추천 성공' })
+  async getRecommendations(
+    @GetUser('userId') userId: string,
+    @Query('lat') lat: string,
+    @Query('lng') lng: string,
+    @Query('isGlobal') isGlobal: string,
+  ) {
+    const globalMode = isGlobal === 'true';
+
+    if (!globalMode && (!lat || !lng)) {
+      throw new BadRequestException('위도(lat)와 경도(lng) 파라미터가 필요합니다.');
+    }
+
+    const recommendations = await this.aiService.recommendDestinations(
+      userId,
+      lat ? parseFloat(lat) : 0,
+      lng ? parseFloat(lng) : 0,
+      globalMode,
+    );
+
+    return {
+      success: true,
+      recommendations,
+      message: '취향 기반 여행지 추천이 완료되었습니다.',
+    };
   }
 
   /**
